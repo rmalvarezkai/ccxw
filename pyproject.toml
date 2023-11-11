@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ccxw"
-version = "0.1.0"
+version = "0.1.2"
 description = "Ccxw - CryptoCurrency eXchange Websocket Library"
 authors = ["Ricardo Marcelo Alvarez <rmalvarezkai@gmail.com>"]
 readme = "README.md"
@@ -9,9 +9,9 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.9"
 thread6 = "^0.2.0"
-pytest = "^7.4.2"
 websocket-client = "^1.6.4"
 websocket-server = "^0.6.4"
+pytest = "^7.4.3"
 
 
 [build-system]
