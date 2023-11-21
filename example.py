@@ -16,7 +16,7 @@ import pprint # For debug
 
 from ccxw import ccxw
 
-def main(argv):
+def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     """
     main function
     =============
@@ -69,6 +69,58 @@ def main(argv):
     print(msg_out)
     print('')
 
+    ################################################################################################
+    # api_key = None
+    # api_secret = None
+
+    # testmode = False
+    # result_max_len = 4
+    # update_speed = '1000ms'
+    # data_max_len = 4
+    # debug = False
+    # wsm = None
+
+    # #max_symbols_lists = 0
+
+    # for exchange_out in ccxw.Ccxw.get_supported_exchanges():
+    #     try:
+    #         wsm = ccxw.Ccxw(exchange_out, endpoint, symbol_in, testmode,\
+    #                         api_key=api_key, api_secret=api_secret, interval=interval,\
+    #                         result_max_len=result_max_len, update_speed=update_speed,\
+    #                         data_max_len=data_max_len, debug=debug)
+    #     except Exception as exc: # pylint: disable=broad-except
+    #         print(str(exc))
+    #         wsm = None
+
+    #     time_ini = int(time.time_ns())
+    #     data = wsm.get_exchange_info(False) # # pylint: disable=unused-variable
+    #     time_end = int(time.time_ns())
+    #     time_diff = round(((time_end - time_ini) / 1000000),3)
+    #     print(exchange_out + ' -> ' + 'time_diff: ' + str(time_diff))
+    #     time_ini = int(time.time_ns())
+    #     data = wsm.get_exchange_info(False) # # pylint: disable=unused-variable
+    #     time_end = int(time.time_ns())
+    #     time_diff = round(((time_end - time_ini) / 1000000),3)
+    #     print(exchange_out + ' -> ' + 'time_diff: ' + str(time_diff))
+
+    #     print('-----------------------------------------------------------')
+
+    #     #pprint.pprint(data,sort_dicts=False)
+
+    # #     data = wsm.get_exchange_full_list_symbols(True)
+
+    # #     exchange_symbols_len = len(data)
+
+    # #     print(str(exchange_out) + ': ' + str(exchange_symbols_len))
+
+    # #     if exchange_symbols_len > max_symbols_lists:
+    # #         max_symbols_lists = exchange_symbols_len
+
+    # # print('max_symbols_lists: ' + str(max_symbols_lists))
+
+    # return result
+    ################################################################################################
+
     ##pprint.pprint(getattr(ccxt.pro,exchange)().describe()['urls'])
     ##return result
 
@@ -84,7 +136,7 @@ def main(argv):
     time_max = 5
     time_sleep = 1
     testmode = False
-    result_max_len = 9
+    result_max_len = 4
     #result_max_len = 500
     update_speed = '1000ms'
     data_max_len = 4
@@ -94,10 +146,10 @@ def main(argv):
     exchange_out = exchange
     endpoint_out = endpoint
 
-    proc_only_arguments = False
+    proc_only_arguments = True
 
     #############################
-    if proc_only_arguments:
+    if proc_only_arguments: # pylint: disable=too-many-nested-blocks
         try:
             wsm0 = ccxw.Ccxw(exchange_out, endpoint_out, symbol_in, testmode,\
                             api_key=api_key, api_secret=api_secret, interval=interval,\

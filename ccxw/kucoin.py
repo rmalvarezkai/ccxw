@@ -15,13 +15,13 @@ import math
 
 import ccxw.ccxw_common_functions as ccf
 
-class KucoinAuxClass():
+class KucoinAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
     """
     Ccxw - CryptoCurrency eXchange Websocket Library KucoinAuxClass
     ===============================================================
         This class contains helper functions for the Ccxw class.
     """
-
+    # pylint: disable=too-many-arguments
     def __init__(self, endpoint: str=None, symbol: str=None, trading_type: str='SPOT',\
                  testmode: bool=False, api_key: str=None, api_secret: str=None,\
                  result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
@@ -54,26 +54,24 @@ class KucoinAuxClass():
         self.__api_secret = api_secret # pylint: disable=unused-private-member
         self.__testmode = testmode
 
+        self.__exchange_info_cache = {}
+        self.__exchange_info_cache['data'] = None
+        self.__exchange_info_cache['last_get_time'] = 0
+
         self.__debug = debug # pylint: disable=unused-private-member
         self.__ws_symbol = symbol
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
-        if self.__data_max_len > 400:
-            self.__data_max_len = 400
-
-        if self.__data_max_len < 1:
-            self.__data_max_len = 1
+        self.__data_max_len = min(self.__data_max_len, 400)
+        self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
         self.__update_speed = update_speed
         self.__interval = interval
 
-        if self.__result_max_len > 500:
-            self.__result_max_len = 500
-
-        if self.__result_max_len < 1:
-            self.__result_max_len = 1
+        self.__result_max_len = min(self.__result_max_len, 500)
+        self.__result_max_len = max(self.__result_max_len, 1)
 
         self.__exchange_hostname = None # pylint: disable=unused-private-member
         self.__ws_url_api = None
@@ -177,7 +175,7 @@ class KucoinAuxClass():
 
         return result
 
-    def get_exchange_info(self):
+    def get_exchange_info(self, full_list=False): # pylint: disable=unused-argument
         """
         get_exchange_info
         =================
@@ -188,17 +186,61 @@ class KucoinAuxClass():
 
         result = None
 
-        __l_url_api = self.get_api_url()
+        full_list = True
+        max_last_get_time = 7200
 
-        __l_endpoint = '/api/v2/symbols'
+        current_time = int(time.time())
 
-        __l_url_point = __l_url_api + __l_endpoint
+        if (current_time - self.__exchange_info_cache['last_get_time']) >= max_last_get_time:
+            self.__exchange_info_cache['data'] = None
 
+        if self.__exchange_info_cache['data'] is None:
 
-        __data = ccf.file_get_contents_url(__l_url_point)
+            __l_url_api = self.get_api_url()
 
-        if __data is not None and ccf.is_json(__data):
-            result = json.loads(__data)
+            __l_endpoint = '/api/v2/symbols'
+
+            __l_url_point = __l_url_api + __l_endpoint
+
+            __data = ccf.file_get_contents_url(__l_url_point)
+
+            if __data is not None and ccf.is_json(__data):
+                result = json.loads(__data)
+                self.__exchange_info_cache['data'] = result
+                self.__exchange_info_cache['last_get_time'] = current_time
+
+        else:
+            result = self.__exchange_info_cache['data']
+
+        return result
+
+    def get_exchange_full_list_symbols(self, sort_list=True):
+        """
+        get_exchange_full_list_symbols
+        ==============================
+            This function get exchange info. 
+                :param sort_list: bool.
+                :return dict: Return exchange info.
+        """
+
+        result = None
+        __main_data = self.get_exchange_info(True)
+
+        if __main_data is not None and isinstance(__main_data,dict)\
+            and 'data' in __main_data and isinstance(__main_data['data'],list):
+
+            result = []
+            for symbol_data in __main_data['data']:
+                if symbol_data is not None and isinstance(symbol_data,dict):
+                    if 'baseCurrency' in symbol_data and 'quoteCurrency' in symbol_data\
+                        and isinstance(symbol_data['baseCurrency'],str)\
+                        and isinstance(symbol_data['quoteCurrency'],str):
+                        result.append(\
+                            symbol_data['baseCurrency'].upper() + '/'\
+                            + symbol_data['quoteCurrency'].upper())
+
+            if sort_list:
+                result.sort()
 
         return result
 
@@ -213,22 +255,14 @@ class KucoinAuxClass():
 
         result = False
 
-        __data = self.get_exchange_info()
+        __data = self.get_exchange_full_list_symbols()
 
-        if isinstance(__data,dict) and 'code' in __data and __data['code'] == '200000'\
-            and 'data' in __data and isinstance(__data['data'],list) and len(__data['data']) > 0:
-            __res_data = (
-                [d for d in __data['data'] if d['symbol'] ==\
-                 self.__ws_symbol.replace("/","-").upper()]
-            )
-            if isinstance(__res_data,list) and len(__res_data) > 0\
-                and isinstance(__res_data[0],dict)\
-                and 'enableTrading' in __res_data[0] and __res_data[0]['enableTrading']:
-                result = True
+        if isinstance(__data,list) and self.__ws_symbol in __data:
+            result = True
 
         return result
 
-    def get_websocket_endpoint_path(self):
+    def get_websocket_endpoint_path(self): # pylint: disable=too-many-statements
         """
         get_websocket_endpoint_path
         ===========================
@@ -239,7 +273,7 @@ class KucoinAuxClass():
 
         result = None
 
-        if not (self.__update_speed == '100ms' or self.__update_speed == '1000ms'):
+        if not self.__update_speed in ('100ms', '1000ms'):
             self.__update_speed = '1000ms'
 
         __send_data_vars = None
@@ -272,7 +306,6 @@ class KucoinAuxClass():
 
             self.__ws_endpoint_url = ''
             self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
-
 
         elif self.__ws_endpoint == 'trades':
             __send_data_vars = None
@@ -343,6 +376,270 @@ class KucoinAuxClass():
 
         return result
 
+    def manage_websocket_message_order_book(self,data):
+        """
+        manage_websocket_message_order_book
+        ===================================
+            This function manage websocket message and normalize result
+            data for order_book endpoint.
+
+                :param data: dict.
+                :return dict: Return dict with normalized data.
+        """
+        result = None
+
+        __temp_data = data
+        __proc_data = False
+
+        if __temp_data is not None and isinstance(__temp_data,dict)\
+            and 'type' in __temp_data and 'data' in __temp_data\
+            and isinstance(__temp_data['data'],dict):
+            if __temp_data['type'] == 'message':
+
+                if 'changes' in __temp_data['data']\
+                    and isinstance(__temp_data['data']['changes'],dict):
+                    if self.__ws_temp_data is None:
+                        if self.__init_order_book_data()\
+                            and self.__manage_websocket_diff_data(__temp_data['data']):
+                            __proc_data = True
+                    elif self.__manage_websocket_diff_data(__temp_data['data']):
+                        __proc_data = True
+
+                if __proc_data:
+                    __message_out = None
+                    __message_out = {}
+                    __message_out['endpoint'] = self.__ws_endpoint
+                    __message_out['exchange'] = self.__exchange
+                    __message_out['symbol'] = self.__ws_symbol
+                    __message_out['interval'] = None
+                    __message_out['last_update_id'] = (
+                        self.__ws_temp_data['last_update_id']
+                    )
+                    __message_out['diff_update_id'] = (
+                        self.__ws_temp_data['diff_update_id']
+                    )
+                    __message_out['bids'] = (
+                        self.__ws_temp_data['bids'][:self.__result_max_len]
+                    )
+                    __message_out['asks'] = (
+                        self.__ws_temp_data['asks'][:self.__result_max_len]
+                    )
+                    __message_out['type'] = self.__ws_temp_data['type']
+                    __current_datetime = datetime.datetime.utcnow()
+                    __current_timestamp = __current_datetime.strftime("%s.%f")
+                    __current_datetime = (
+                        __current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
+                    )
+                    __message_out['timestamp'] = __current_timestamp
+                    __message_out['datetime'] = __current_datetime
+
+                    result = __message_out
+
+        return result
+
+    def manage_websocket_message_kline(self,data):
+        """
+        manage_websocket_message_kline
+        ==============================
+            This function manage websocket message and normalize result
+            data for kline endpoint.
+
+                :param data: dict.
+                :return dict: Return dict with normalized data.
+        """
+        result = None
+
+        __temp_data = data
+        __proc_data = False
+
+        if __temp_data is not None and isinstance(__temp_data,dict):
+            if 'type' in __temp_data and 'data' in __temp_data\
+                and isinstance(__temp_data['data'],dict):
+                if 'candles' in __temp_data['data']\
+                    and isinstance(__temp_data['data']['candles'],list)\
+                    and len(__temp_data['data']['candles']) > 0:
+
+                    __delta_time = 60000
+
+                    if self.__interval[-1] == 'm':
+                        __delta_mult = int(self.__interval.replace('m',''))
+                        __delta_time = 60000 * __delta_mult
+
+                    elif self.__interval[-1] == 'h' or self.__interval[-1] == 'H':
+                        __delta_mult = int(self.__interval.replace('h','').replace('H',''))
+                        __delta_time = 60000 * __delta_mult * 60
+
+                    elif self.__interval[-1] == 'd' or self.__interval[-1] == 'D':
+                        __delta_mult = int(self.__interval.replace('d','').replace('D',''))
+                        __delta_time = 60000 * __delta_mult * 60 * 24
+
+                    elif self.__interval[-1] == 'w' or self.__interval[-1] == 'W':
+                        __delta_mult = int(self.__interval.replace('w','').replace('W',''))
+                        __delta_time = 60000 * __delta_mult * 60 * 24
+
+                    __delta_time = __delta_time - 1
+
+                    if self.__ws_temp_data is None or not isinstance(self.__ws_temp_data,dict):
+                        self.__ws_temp_data = {}
+
+                    __message_add = None
+                    __message_add = {}
+                    __message_add['endpoint'] = self.__ws_endpoint
+                    __message_add['exchange'] = self.__exchange
+                    __message_add['symbol'] = self.__ws_symbol
+                    __message_add['interval'] = self.__interval
+                    __message_add['last_update_id'] = __temp_data['data']['time']
+                    __message_add['open_time'] = int(__temp_data['data']['candles'][0]) * 1000
+                    __message_add['close_time'] = (
+                        (int(__temp_data['data']['candles'][0]) * 1000) + __delta_time
+                    )
+                    __message_add['open_time_date'] = (
+                        time.strftime("%Y-%m-%d %H:%M:%S",\
+                                        time.gmtime(int(round(__message_add['open_time']/1000))))
+                    )
+                    __message_add['close_time_date'] = (
+                        time.strftime("%Y-%m-%d %H:%M:%S",\
+                                        time.gmtime(int(round(__message_add['close_time']/1000))))
+                    )
+                    __message_add['open'] = __temp_data['data']['candles'][1]
+                    __message_add['close'] = __temp_data['data']['candles'][2]
+                    __message_add['hight'] = __temp_data['data']['candles'][3]
+                    __message_add['low'] = __temp_data['data']['candles'][4]
+                    __message_add['volume'] = __temp_data['data']['candles'][5]
+                    __message_add['is_closed'] = None
+
+                    self.__ws_temp_data[int(__message_add['open_time'])] = __message_add
+
+                    while len(self.__ws_temp_data) > self.__data_max_len:
+                        __first_key = min(list(self.__ws_temp_data.keys()))
+                        __nc = self.__ws_temp_data.pop(__first_key,None)
+
+                    __message_out = list(self.__ws_temp_data.values())
+
+                    result = __message_out
+
+        return result
+
+    def manage_websocket_message_trades(self,data):
+        """
+        manage_websocket_message_trades
+        ===============================
+            This function manage websocket message and normalize result
+            data for trades endpoint.
+
+                :param data: dict.
+                :return dict: Return dict with normalized data.
+        """
+        result = None
+
+        __temp_data = data
+        __proc_data = False
+
+        if __temp_data is not None and isinstance(__temp_data,dict):
+            if 'type' in __temp_data and __temp_data['type'] == 'message'\
+                and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
+
+                if self.__ws_temp_data is None:
+                    self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
+
+                __message_add = None
+                __message_add = {}
+                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['exchange'] = self.__exchange
+                __message_add['symbol'] = self.__ws_symbol
+                __message_add['interval'] = self.__interval
+                __message_add['event_time'] = int(round(time.time_ns() / 1000000))
+                __message_add['trade_id'] = str(__temp_data['data']['tradeId'])
+                __message_add['price'] = str(__temp_data['data']['price'])
+                __message_add['quantity'] = str(__temp_data['data']['size'])
+                __message_add['trade_time'] = (
+                    int(round(float(__temp_data['data']['time']) / 1000000))
+                )
+                __message_add['trade_time_date'] = (
+                    time.strftime("%Y-%m-%d %H:%M:%S",\
+                                    time.gmtime(int(round(__message_add['trade_time']\
+                                                        /1000))))\
+                        + '.' + str(round(math.modf(round(__message_add['trade_time']/1000,\
+                                                            3))[0]*1000)).rjust(3,'0')
+                )
+                __message_add['side_of_taker'] = __temp_data['data']['side'].upper()
+
+                if self.__ws_temp_data.full():
+                    self.__ws_temp_data.get(True,1)
+
+                self.__ws_temp_data.put(__message_add,True,5)
+
+                __message_out = list(self.__ws_temp_data.queue)
+                __message_out.reverse()
+
+                result = __message_out
+
+        return result
+
+    def manage_websocket_message_ticker(self,data):
+        """
+        manage_websocket_message_ticker
+        ===============================
+            This function manage websocket message and normalize result
+            data for ticker endpoint.
+
+                :param data: dict.
+                :return dict: Return dict with normalized data.
+        """
+        result = None
+
+        __temp_data = data
+        __proc_data = False
+
+        if __temp_data is not None and isinstance(__temp_data,dict):
+            if 'type' in __temp_data and __temp_data['type'] == 'message'\
+                and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
+
+                if self.__ws_temp_data is None:
+                    self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
+
+                __message_add = None
+                __message_add = {}
+                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['exchange'] = self.__exchange
+                __message_add['symbol'] = self.__ws_symbol
+                __message_add['interval'] = self.__interval
+                __message_add['event_type'] = '24hrTicker'
+                __message_add['event_time'] = int(round(time.time_ns() / 1000000))
+                __message_add['event_time_date'] = (
+                    time.strftime("%Y-%m-%d %H:%M:%S",\
+                                    time.gmtime(int(round(__message_add['event_time']\
+                                                        /1000))))\
+                        + '.' + str(round(math.modf(round(__message_add['event_time']\
+                                                            /1000,3))[0]*1000)).rjust(3,'0')
+                )
+                __message_add['price_change'] = None
+                __message_add['price_change_percent'] = None
+                __message_add['weighted_average_price'] = None
+                __message_add['first_trade_before_the_24hr_rolling_window'] = None
+                __message_add['last_price'] = __temp_data['data']['price']
+                __message_add['last_quantity'] = __temp_data['data']['size']
+                __message_add['best_bid_price'] = __temp_data['data']['bestBid']
+                __message_add['best_bid_quantity'] = __temp_data['data']['bestBidSize']
+                __message_add['best_ask_price'] = __temp_data['data']['bestAsk']
+                __message_add['best_ask_quantity'] = __temp_data['data']['bestAskSize']
+                __message_add['open_price'] = None
+                __message_add['high_price'] = None
+                __message_add['low_price'] = None
+                __message_add['total_traded_base_asset_volume'] = None
+                __message_add['total_traded_quote_asset_volume'] = None
+                __message_add['statistics_open_time'] = None
+                __message_add['statistics_open_time_date'] = None
+                __message_add['statistics_close_time'] = None
+                __message_add['statistics_close_time_date'] = None
+                __message_add['total_number_of_trades'] = None
+
+                __message_out = __message_add
+
+                result = __message_out
+
+        return result
+
     def manage_websocket_message(self,ws,message_in): # pylint: disable=unused-argument
         """
         manage_websocket_message
@@ -363,218 +660,36 @@ class KucoinAuxClass():
                 __proc_data = False
 
                 if self.__ws_endpoint == 'order_book':
-                    if __temp_data is not None and isinstance(__temp_data,dict)\
-                        and 'type' in __temp_data and 'data' in __temp_data\
-                        and isinstance(__temp_data['data'],dict):
-                        if __temp_data['type'] == 'message':
+                    __message_out = self.manage_websocket_message_order_book(__temp_data)
 
-                            if 'changes' in __temp_data['data']\
-                                and isinstance(__temp_data['data']['changes'],dict):
-                                if self.__ws_temp_data is None:
-                                    if self.__init_order_book_data()\
-                                        and self.__manage_websocket_diff_data(__temp_data['data']):
-                                        __proc_data = True
-                                elif self.__manage_websocket_diff_data(__temp_data['data']):
-                                    __proc_data = True
-
-                            if __proc_data:
-                                __message_out = None
-                                __message_out = {}
-                                __message_out['endpoint'] = self.__ws_endpoint
-                                __message_out['exchange'] = self.__exchange
-                                __message_out['symbol'] = self.__ws_symbol
-                                __message_out['interval'] = None
-                                __message_out['last_update_id'] = (
-                                    self.__ws_temp_data['last_update_id']
-                                )
-                                __message_out['diff_update_id'] = (
-                                    self.__ws_temp_data['diff_update_id']
-                                )
-                                __message_out['bids'] = (
-                                    self.__ws_temp_data['bids'][:self.__result_max_len]
-                                )
-                                __message_out['asks'] = (
-                                    self.__ws_temp_data['asks'][:self.__result_max_len]
-                                )
-                                __message_out['type'] = self.__ws_temp_data['type']
-                                __current_datetime = datetime.datetime.utcnow()
-                                __current_timestamp = __current_datetime.strftime("%s.%f")
-                                __current_datetime = (
-                                    __current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
-                                )
-                                __message_out['timestamp'] = __current_timestamp
-                                __message_out['datetime'] = __current_datetime
-
-                                result = {}
-                                result['data'] = __message_out
-                                result['min_proc_time_ms'] = 0
-                                result['max_proc_time_ms'] = 0
+                    result = {}
+                    result['data'] = __message_out
+                    result['min_proc_time_ms'] = 0
+                    result['max_proc_time_ms'] = 0
 
                 elif self.__ws_endpoint == 'kline':
-                    if __temp_data is not None and isinstance(__temp_data,dict)\
-                        and 'type' in __temp_data and 'data' in __temp_data\
-                        and isinstance(__temp_data['data'],dict)\
-                        and 'candles' in __temp_data['data']\
-                        and isinstance(__temp_data['data']['candles'],list)\
-                        and len(__temp_data['data']['candles']) > 0:
+                    __message_out = self.manage_websocket_message_kline(__temp_data)
 
-                        __delta_time = 60000
-
-                        if self.__interval[-1] == 'm':
-                            __delta_mult = int(self.__interval.replace('m',''))
-                            __delta_time = 60000 * __delta_mult
-
-                        elif self.__interval[-1] == 'h' or self.__interval[-1] == 'H':
-                            __delta_mult = int(self.__interval.replace('h','').replace('H',''))
-                            __delta_time = 60000 * __delta_mult * 60
-
-                        elif self.__interval[-1] == 'd' or self.__interval[-1] == 'D':
-                            __delta_mult = int(self.__interval.replace('d','').replace('D',''))
-                            __delta_time = 60000 * __delta_mult * 60 * 24
-
-                        elif self.__interval[-1] == 'w' or self.__interval[-1] == 'W':
-                            __delta_mult = int(self.__interval.replace('w','').replace('W',''))
-                            __delta_time = 60000 * __delta_mult * 60 * 24
-
-                        __delta_time = __delta_time - 1
-
-                        if self.__ws_temp_data is None or not isinstance(self.__ws_temp_data,dict):
-                            self.__ws_temp_data = {}
-
-                        __message_add = None
-                        __message_add = {}
-                        __message_add['endpoint'] = self.__ws_endpoint
-                        __message_add['exchange'] = self.__exchange
-                        __message_add['symbol'] = self.__ws_symbol
-                        __message_add['interval'] = self.__interval
-                        __message_add['last_update_id'] = __temp_data['data']['time']
-                        __message_add['open_time'] = int(__temp_data['data']['candles'][0]) * 1000
-                        __message_add['close_time'] = (
-                            (int(__temp_data['data']['candles'][0]) * 1000) + __delta_time
-                        )
-                        __message_add['open_time_date'] = (
-                            time.strftime("%Y-%m-%d %H:%M:%S",\
-                                          time.gmtime(int(round(__message_add['open_time']/1000))))
-                        )
-                        __message_add['close_time_date'] = (
-                            time.strftime("%Y-%m-%d %H:%M:%S",\
-                                          time.gmtime(int(round(__message_add['close_time']/1000))))
-                        )
-                        __message_add['open'] = __temp_data['data']['candles'][1]
-                        __message_add['close'] = __temp_data['data']['candles'][2]
-                        __message_add['hight'] = __temp_data['data']['candles'][3]
-                        __message_add['low'] = __temp_data['data']['candles'][4]
-                        __message_add['volume'] = __temp_data['data']['candles'][5]
-                        __message_add['is_closed'] = None
-
-                        self.__ws_temp_data[int(__message_add['open_time'])] = __message_add
-
-                        while len(self.__ws_temp_data) > self.__data_max_len:
-                            __first_key = min(list(self.__ws_temp_data.keys()))
-                            __nc = self.__ws_temp_data.pop(__first_key,None)
-
-                        __message_out = list(self.__ws_temp_data.values())
-
-                        result = {}
-                        result['data'] = __message_out
-                        result['min_proc_time_ms'] = 0
-                        result['max_proc_time_ms'] = 0
+                    result = {}
+                    result['data'] = __message_out
+                    result['min_proc_time_ms'] = 0
+                    result['max_proc_time_ms'] = 0
 
                 elif self.__ws_endpoint == 'trades':
-                    if __temp_data is not None and isinstance(__temp_data,dict)\
-                        and 'type' in __temp_data and __temp_data['type'] == 'message'\
-                        and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
+                    __message_out = self.manage_websocket_message_trades(__temp_data)
 
-                        if self.__ws_temp_data is None:
-                            self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
-
-                        __message_add = None
-                        __message_add = {}
-                        __message_add['endpoint'] = self.__ws_endpoint
-                        __message_add['exchange'] = self.__exchange
-                        __message_add['symbol'] = self.__ws_symbol
-                        __message_add['interval'] = self.__interval
-                        __message_add['event_time'] = str(round(time.time_ns() / 1000000))
-                        __message_add['trade_id'] = __temp_data['data']['tradeId']
-                        __message_add['price'] = __temp_data['data']['price']
-                        __message_add['quantity'] = __temp_data['data']['size']
-                        __message_add['trade_time'] = (
-                            int(round(float(__temp_data['data']['time']) / 1000000))
-                        )
-                        __message_add['trade_time_date'] = (
-                            time.strftime("%Y-%m-%d %H:%M:%S",\
-                                          time.gmtime(int(round(__message_add['trade_time']\
-                                                                /1000))))\
-                                + '.' + str(round(math.modf(round(__message_add['trade_time']/1000,\
-                                                                  3))[0]*1000)).rjust(3,'0')
-                        )
-                        __message_add['side_of_taker'] = __temp_data['data']['side'].upper()
-
-                        if self.__ws_temp_data.full():
-                            self.__ws_temp_data.get(True,1)
-
-                        self.__ws_temp_data.put(__message_add,True,5)
-
-                        __message_out = list(self.__ws_temp_data.queue)
-                        __message_out.reverse()
-
-                        result = {}
-                        result['data'] = __message_out
-                        result['min_proc_time_ms'] = 0
-                        result['max_proc_time_ms'] = 0
+                    result = {}
+                    result['data'] = __message_out
+                    result['min_proc_time_ms'] = 0
+                    result['max_proc_time_ms'] = 0
 
                 elif self.__ws_endpoint == 'ticker':
-                    if __temp_data is not None and isinstance(__temp_data,dict)\
-                        and 'type' in __temp_data and __temp_data['type'] == 'message'\
-                        and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
+                    __message_out = self.manage_websocket_message_ticker(__temp_data)
 
-                        if self.__ws_temp_data is None:
-                            self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
-
-                        __message_add = None
-                        __message_add = {}
-                        __message_add['endpoint'] = self.__ws_endpoint
-                        __message_add['exchange'] = self.__exchange
-                        __message_add['symbol'] = self.__ws_symbol
-                        __message_add['interval'] = self.__interval
-                        __message_add['event_type'] = '24hrTicker'
-                        __message_add['event_time'] = int(round(time.time_ns() / 1000000))
-                        __message_add['event_time_date'] = (
-                            time.strftime("%Y-%m-%d %H:%M:%S",\
-                                          time.gmtime(int(round(__message_add['event_time']\
-                                                                /1000))))\
-                                + '.' + str(round(math.modf(round(__message_add['event_time']\
-                                                                  /1000,3))[0]*1000)).rjust(3,'0')
-                        )
-                        __message_add['price_change'] = None
-                        __message_add['price_change_percent'] = None
-                        __message_add['weighted_average_price'] = None
-                        __message_add['first_trade_before_the_24hr_rolling_window'] = None
-                        __message_add['last_price'] = __temp_data['data']['price']
-                        __message_add['last_quantity'] = __temp_data['data']['size']
-                        __message_add['best_bid_price'] = __temp_data['data']['bestBid']
-                        __message_add['best_bid_quantity'] = __temp_data['data']['bestBidSize']
-                        __message_add['best_ask_price'] = __temp_data['data']['bestAsk']
-                        __message_add['best_ask_quantity'] = __temp_data['data']['bestAskSize']
-                        __message_add['open_price'] = None
-                        __message_add['high_price'] = None
-                        __message_add['low_price'] = None
-                        __message_add['total_traded_base_asset_volume'] = None
-                        __message_add['total_traded_quote_asset_volume'] = None
-                        __message_add['statistics_open_time'] = None
-                        __message_add['statistics_open_time_date'] = None
-                        __message_add['statistics_close_time'] = None
-                        __message_add['statistics_close_time_date'] = None
-                        __message_add['total_number_of_trades'] = None
-
-                        __message_out = __message_add
-
-                        result = {}
-                        result['data'] = __message_out
-                        result['min_proc_time_ms'] = 0
-                        result['max_proc_time_ms'] = 0
-
-
+                    result = {}
+                    result['data'] = __message_out
+                    result['min_proc_time_ms'] = 0
+                    result['max_proc_time_ms'] = 0
 
 
         except Exception as exc: # pylint: disable=broad-except
@@ -582,7 +697,7 @@ class KucoinAuxClass():
 
         return result
 
-    def __manage_websocket_diff_data(self,diff_data):
+    def __manage_websocket_diff_data(self,diff_data): # pylint: disable=too-many-branches
 
         result = False
 
@@ -606,9 +721,8 @@ class KucoinAuxClass():
                     if float(diff_data['changes'][__key][i][1]) == 0:
                         n_t = __temp_bids_d.pop(diff_data['changes'][__key][i][0],None) # pylint: disable=unused-variable
                     else:
-                        __temp_bids_d[diff_data['changes'][__key][i][0]] = (
+                        __temp_bids_d[diff_data['changes'][__key][i][0]] = \
                             diff_data['changes'][__key][i][1]
-                        )
 
             for i,j in __temp_bids_d.items():
                 __temp_bids_l.append([i,j])
@@ -624,9 +738,8 @@ class KucoinAuxClass():
                     if float(diff_data['changes'][__key][i][1]) == 0:
                         n_t = __temp_asks_d.pop(diff_data['changes'][__key][i][0],None)
                     else:
-                        __temp_asks_d[diff_data['changes'][__key][i][0]] = (
+                        __temp_asks_d[diff_data['changes'][__key][i][0]] = \
                             diff_data['changes'][__key][i][1]
-                        )
 
             for i,j in __temp_asks_d.items():
                 __temp_asks_l.append([i,j])

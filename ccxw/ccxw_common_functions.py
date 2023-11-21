@@ -14,7 +14,8 @@ def is_json(myjson):
     """
     is_json
     =======
-        This function get a string or bytes and check if json return True if the input is a json valid string.
+        This function get a string or bytes and check if json return True
+        if the input is a json valid string.
             :param myjson: str | bytes.
 
             :return bool: Return True if myjson is a str and is a json. 
@@ -22,7 +23,7 @@ def is_json(myjson):
 
     result = False
 
-    if isinstance(myjson,str) or isinstance(myjson,bytes):
+    if isinstance(myjson,(str,bytes)):
         try:
             json.loads(myjson)
             result = True
@@ -59,7 +60,9 @@ def file_get_contents_url(url,mode="b",post_data=None,headers=None,timeout=9):
 
         if req is not None:
             try:
-                result = urllib.request.urlopen(req,None,timeout=timeout).read()
+                with urllib.request.urlopen(req, None, timeout=timeout) as response:
+                    result = response.read()
+
             except Exception: # pylint: disable=broad-except
                 result = None
 

@@ -19,7 +19,7 @@ import gzip
 import importlib
 import websocket
 
-class Ccxw():
+class Ccxw(): # pylint: disable=too-many-instance-attributes
     """
     CCXW - CryptoCurrency eXchange Websocket Library
     ================================================
@@ -53,6 +53,7 @@ class Ccxw():
     ```
     """
 
+    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
     def __init__(self, exchange, endpoint=None, symbol=None, trading_type: str='SPOT',\
         testmode=False, api_key: str=None, api_secret: str=None, result_max_len: int=5,\
         update_speed: str='100ms', interval: str='1m', data_max_len: int=400, debug: bool=False):
@@ -80,11 +81,8 @@ class Ccxw():
         self.__debug = debug
         self.__data_max_len = data_max_len
 
-        if self.__data_max_len > 400:
-            self.__data_max_len = 400
-
-        if self.__data_max_len < 1:
-            self.__data_max_len = 1
+        self.__data_max_len = min(self.__data_max_len, 400)
+        self.__data_max_len = max(self.__data_max_len, 1)
 
         if exchange not in Ccxw.get_supported_exchanges():
             raise ValueError('The exchange ' + str(exchange) + ' is not supported.')
@@ -166,11 +164,8 @@ class Ccxw():
             #self.__conn_db = sqlite3.connect(self.__database_name, check_same_thread=False)
             self.__conn_db = sqlite3.connect(':memory:', check_same_thread=False)
 
-            if self.__result_max_len > self.__data_max_len:
-                self.__result_max_len = self.__data_max_len
-
-            if self.__result_max_len < 1:
-                self.__result_max_len = 1
+            self.__result_max_len = min(self.__result_max_len, self.__data_max_len)
+            self.__result_max_len = max(self.__result_max_len, 1)
 
             self.__ws_url = self.__auxiliary_class.get_websocket_url()
 
@@ -224,9 +219,6 @@ class Ccxw():
         else:
             raise ValueError('The exchange ' + str(exchange) + ' have not websocket api.')
 
-        ##print('SOCKET: ' + str(self.__socket))
-        ##print('ENDPOINT: ' + str(self.__ws_endpoint_url))
-
     def __del__(self):
 
         if not self.__stop_launcher:
@@ -239,6 +231,36 @@ class Ccxw():
         if hasattr(self,'__database_name') and self.__database_name is not None:
             if os.path.exists(self.__database_name):
                 os.remove(self.__database_name)
+
+    def get_exchange_info(self, full_list=False):
+        """
+        get_exchange_info
+        =================
+            This function get exchange info. 
+                :param full_list: bool.
+                :return dict: Return exchange info.
+        """
+
+        result = None
+
+        result = self.__auxiliary_class.get_exchange_info(full_list)
+
+        return result
+
+    def get_exchange_full_list_symbols(self, sort_list=True):
+        """
+        get_exchange_full_list_symbols
+        ==============================
+            This function get exchange info. 
+                :param sort_list: bool.
+                :return dict: Return exchange info.
+        """
+
+        result = None
+
+        result = self.__auxiliary_class.get_exchange_full_list_symbols(sort_list)
+
+        return result
 
     def start(self):
         """
@@ -307,7 +329,8 @@ class Ccxw():
         else:
             result = True
 
-        self.__thread.join(time_to_wait)
+        if self.__thread is not None:
+            self.__thread.join(time_to_wait)
 
         if hasattr(self.__auxiliary_class, 'stop'):
             self.__auxiliary_class.stop()
@@ -392,12 +415,10 @@ class Ccxw():
         elif self.__ws_endpoint_on_open_vars is not None\
             and isinstance(self.__ws_endpoint_on_open_vars,str):
             try:
-                ##print(self.__ws_endpoint_on_open_vars)
                 ws.send(self.__ws_endpoint_on_open_vars)
                 result = True
             except Exception: # pylint: disable=broad-except
                 result = False
-                #print('On open websocket exception: ' + str(exc))
         else:
             result = True
 
@@ -486,8 +507,6 @@ class Ccxw():
         if self.__stop_launcher and not self.__ws_ended:
             ws.close()
 
-        ##print('time_diff: ' + str(__time_diff))
-
     def get_current_data(self):
         """
         Ccxw get_current_data function.
@@ -508,7 +527,7 @@ class Ccxw():
             __current_data = __local_cursor_db.fetchone()
 
             if __current_data is not None\
-                and (isinstance(__current_data,tuple) or isinstance(__current_data,list))\
+                and isinstance(__current_data,(list, tuple))\
                 and len(__current_data) > 0 and __current_data[0] is not None\
                 and isinstance(__current_data[0],str):
                 result = (
