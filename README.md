@@ -24,7 +24,7 @@ exchange = 'binance'
 endpoint = 'order_book'
 symbol = 'BTC/USDT'
 
-wsm = ccxw.Ccxw(exchange, endpoint, symbol, result_max_len=20)  # Create instance
+wsm = Ccxw(exchange, endpoint, symbol, result_max_len=20)  # Create instance
 
 wsm.start()  # Start getting data
 

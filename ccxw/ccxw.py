@@ -150,7 +150,7 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
                 self.__api_keys['api_secret'] = api_secret
 
             if not self.__auxiliary_class.if_symbol_supported():
-                raise ValueError('Symbol ' + str(symbol) + 'have not '\
+                raise ValueError('Symbol ' + str(symbol) + ' have not '\
                 + str(self.__trading_type.lower())\
                 + ' market in ' + str(exchange) + ' exchange.')
 
