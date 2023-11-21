@@ -1,5 +1,5 @@
 
-## CCXW - CryptoCurrency eXchange Websocket Library
+# CCXW - CryptoCurrency eXchange Websocket Library
 
 This library is designed to fetch data from exchange WebSocket APIs and store or update data in a temporary SQLite database in the background, making it readily accessible for retrieval. 
 
@@ -7,13 +7,13 @@ Currently, it is available for several exchanges, including Binance, Bybit, and 
 
 Furthermore, the library supports a variety of endpoints, such as order_book, kline, and more. A comprehensive list of supported endpoints can be found via `Ccxw.get_supported_endpoints()`.
 
-### Example:
+## Example:
 
-####Install
+###Install
 ```bash
 pip install ccxw
 ```
-####Use
+###Use
 
 ```python
 import time
