@@ -9,6 +9,12 @@ Furthermore, the library supports a variety of endpoints, such as order_book, kl
 
 ### Example:
 
+####Install
+```bash
+pip install ccxw
+```
+####Use
+
 ```python
 import time
 import pprint
@@ -37,7 +43,3 @@ wsm.stop()  # Stop getting data
 Please be aware that each instance opens a new connection to websockets. If you create multiple instances for the same exchange, you may exceed the websockets connection limits set by exchanges. Make sure to check the connection limits of exchanges before opening numerous instances.
 
 [View License](LICENSE)
-
-
-
-
