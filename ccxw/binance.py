@@ -15,10 +15,10 @@ import math
 
 import ccxw.ccxw_common_functions as ccf
 
-class BinanceAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class BinanceCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
     """
-    Ccxw - CryptoCurrency eXchange Websocket Library BinanceAuxClass
-    ================================================================
+    Ccxw - CryptoCurrency eXchange Websocket Library BinanceCcxwAuxClass
+    ====================================================================
         This class contains helper functions for the Ccxw class.
     """
 
@@ -29,11 +29,11 @@ class BinanceAuxClass(): # pylint: disable=too-many-instance-attributes, duplica
                  data_max_len: int=1000,\
                  debug: bool=False):
         """
-        BinanceAuxClass constructor
-        ===========================
-            Initializes the BinanceAuxClass with the provided parameters.
+        BinanceCcxwAuxClass constructor
+        ===============================
+            Initializes the BinanceCcxwAuxClass with the provided parameters.
 
-                :param self: BinanceAuxClass instance.
+                :param self: BinanceCcxwAuxClass instance.
                 :param endpoint: str.
                 :param symbol: str unified symbol.
                 :param trading_type: str only allowed 'SPOT'.
@@ -47,7 +47,7 @@ class BinanceAuxClass(): # pylint: disable=too-many-instance-attributes, duplica
                 :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
                 :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class BinanceAuxClass.
+                :return: Return a new instance of the Class BinanceCcxwAuxClass.
         """
 
         self.__exchange = os.path.basename(__file__)[:-3]

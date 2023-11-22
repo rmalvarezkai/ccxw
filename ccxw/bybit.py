@@ -14,10 +14,10 @@ import queue
 import math
 import ccxw.ccxw_common_functions as ccf
 
-class BybitAuxClass(): # pylint: disable=too-many-instance-attributes
+class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
     """
-    Ccxw - CryptoCurrency eXchange Websocket Library BybitAuxClass
-    ==============================================================
+    Ccxw - CryptoCurrency eXchange Websocket Library BybitCcxwAuxClass
+    ==================================================================
         This class contains helper functions for the Ccxw class.
     """
 
@@ -27,11 +27,11 @@ class BybitAuxClass(): # pylint: disable=too-many-instance-attributes
                  result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
                  data_max_len: int=1000, debug: bool=False):
         """
-        BybitAuxClass constructor
-        =========================
-            Initializes the BybitAuxClass with the provided parameters.
+        BybitCcxwAuxClass constructor
+        =============================
+            Initializes the BybitCcxwAuxClass with the provided parameters.
 
-                :param self: BybitAuxClass instance.
+                :param self: BybitCcxwAuxClass instance.
                 :param endpoint: str.
                 :param symbol: str unified symbol.
                 :param trading_type: str only allowed 'SPOT'.
@@ -45,7 +45,7 @@ class BybitAuxClass(): # pylint: disable=too-many-instance-attributes
                 :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
                 :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class BybitAuxClass.
+                :return: Return a new instance of the Class BybitCcxwAuxClass.
         """
 
         self.__exchange = os.path.basename(__file__)[:-3]

@@ -16,9 +16,9 @@ import math
 import ccxw.ccxw_common_functions as ccf
 
 
-class OkxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class OkxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
     """
-    Ccxw - CryptoCurrency eXchange Websocket Library OkxAuxClass
+    Ccxw - CryptoCurrency eXchange Websocket Library OkxCcxwAuxClass
     ================================================================
         This class contains helper functions for the Ccxw class
     """
@@ -29,11 +29,11 @@ class OkxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-c
                  result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
                  data_max_len: int=1000, debug: bool=False):
         """
-        OkxAuxClass constructor
-        =======================
+        OkxCcxwAuxClass constructor
+        ===========================
             This class contains helper functions for the Ccxw class.
 
-                :param self: OkxAuxClass instance.
+                :param self: OkxCcxwAuxClass instance.
                 :param endpoint: str.
                 :param symbol: str unified symbol.
                 :param trading_type: str only allowed 'SPOT'.
@@ -47,7 +47,7 @@ class OkxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-c
                 :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
                 :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class OkxAuxClass.
+                :return: Return a new instance of the Class OkxCcxwAuxClass.
         """
 
         self.__exchange = os.path.basename(__file__)[:-3]

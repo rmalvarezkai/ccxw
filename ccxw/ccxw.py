@@ -134,7 +134,7 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
 
             self.__auxiliary_class = getattr(importlib.import_module\
                 (self.__exchange, package=self.__exchange),\
-                self.__exchange.capitalize() + 'AuxClass')\
+                self.__exchange.capitalize() + 'CcxwAuxClass')\
                 (endpoint=self.__ws_endpoint, symbol=self.__ws_symbol, testmode=self.__testmode,\
                 api_key=self.__api_key, api_secret=self.__api_secret,\
                 result_max_len=self.__result_max_len,\

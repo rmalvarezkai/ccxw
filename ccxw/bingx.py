@@ -19,10 +19,10 @@ import websocket_server
 
 import ccxw.ccxw_common_functions as ccf
 
-class BingxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
     """
-    Ccxw - CryptoCurrency eXchange Websocket Library BingxAuxClass
-    ==============================================================
+    Ccxw - CryptoCurrency eXchange Websocket Library BingxCcxwAuxClass
+    ==================================================================
         This class contains helper functions for the Ccxw class.
     """
 
@@ -32,11 +32,11 @@ class BingxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate
                  result_max_len: int=5, update_speed: str='100ms', interval: str='1m',
                  data_max_len: int=1000, debug: bool=False):
         """
-        BingxAuxClass constructor
-        =========================
-            Initializes the BingxAuxClass with the provided parameters.
+        BingxCcxwAuxClass constructor
+        =============================
+            Initializes the BingxCcxwAuxClass with the provided parameters.
 
-                :param self: BingxAuxClass instance.
+                :param self: BingxCcxwAuxClass instance.
                 :param endpoint: str.
                 :param symbol: str unified symbol.
                 :param trading_type: str only allowed 'SPOT'.
@@ -50,7 +50,7 @@ class BingxAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate
                 :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
                 :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class BingxAuxClass.
+                :return: Return a new instance of the Class BingxCcxwAuxClass.
         """
 
 

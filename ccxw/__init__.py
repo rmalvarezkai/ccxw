@@ -33,11 +33,11 @@ for f in modules:
         __all__.append(basename(f)[:-3])
 
 from .ccxw import Ccxw
-from .binance import BinanceAuxClass
-from .bingx import BingxAuxClass
-from .bybit import BybitAuxClass
-from .kucoin import KucoinAuxClass
-from .okx import OkxAuxClass
+from .binance import BinanceCcxwAuxClass
+from .bingx import BingxCcxwAuxClass
+from .bybit import BybitCcxwAuxClass
+from .kucoin import KucoinCcxwAuxClass
+from .okx import OkxCcxwAuxClass
 
 
 

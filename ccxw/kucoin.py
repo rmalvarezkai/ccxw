@@ -15,10 +15,10 @@ import math
 
 import ccxw.ccxw_common_functions as ccf
 
-class KucoinAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
     """
-    Ccxw - CryptoCurrency eXchange Websocket Library KucoinAuxClass
-    ===============================================================
+    Ccxw - CryptoCurrency eXchange Websocket Library KucoinCcxwAuxClass
+    ===================================================================
         This class contains helper functions for the Ccxw class.
     """
     # pylint: disable=too-many-arguments
@@ -27,11 +27,11 @@ class KucoinAuxClass(): # pylint: disable=too-many-instance-attributes, duplicat
                  result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
                  data_max_len: int=1000, debug: bool=False):
         """
-        KucoinAuxClass constructor
-        ==========================
-            Initializes the KucoinAuxClass with the provided parameters.
+        KucoinCcxwAuxClass constructor
+        ==============================
+            Initializes the KucoinCcxwAuxClass with the provided parameters.
 
-                :param self: KucoinAuxClass instance.
+                :param self: KucoinCcxwAuxClass instance.
                 :param endpoint: str.
                 :param symbol: str unified symbol.
                 :param trading_type: str only allowed 'SPOT'.
@@ -45,7 +45,7 @@ class KucoinAuxClass(): # pylint: disable=too-many-instance-attributes, duplicat
                 :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
                 :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class KucoinAuxClass.
+                :return: Return a new instance of the Class KucoinCcxwAuxClass.
         """
 
         self.__exchange = os.path.basename(__file__)[:-3]
