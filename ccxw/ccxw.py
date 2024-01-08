@@ -16,10 +16,34 @@ import sqlite3
 import base64
 import random
 import gzip
-import importlib
-import websocket
 
-class Ccxw(): # pylint: disable=too-many-instance-attributes
+import websocket
+from .binance import BinanceCcxwAuxClass
+from .bybit import BybitCcxwAuxClass
+from .bingx import BingxCcxwAuxClass
+from .kucoin import KucoinCcxwAuxClass
+from .okx import OkxCcxwAuxClass
+
+class CcxwExchangeConfig:
+    """
+    A configuration class for managing exchange classes.
+
+    Attributes:
+    exchange_classes (dict): A dictionary mapping exchange names to their corresponding classes.
+
+    Example:
+    To obtain the class for the 'binance' exchange, use ExchangeConfig.exchange_classes['binance'].
+    """
+
+    exchange_classes = {
+        'binance': BinanceCcxwAuxClass,
+        'bybit': BybitCcxwAuxClass,
+        'bingx': BingxCcxwAuxClass,
+        'kucoin': KucoinCcxwAuxClass,
+        'okx': OkxCcxwAuxClass
+    }
+
+class Ccxw():
     """
     CCXW - CryptoCurrency eXchange Websocket Library
     ================================================
@@ -38,40 +62,74 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
     import pprint
     from ccxw import Ccxw
 
-    wsm = ccxw.Ccxw('binance', 'order_book', 'BTC/USDT', result_max_len=20)  # Create instance
+    symbol = 'BTC/USDT'
+
+    streams = [\
+                    {\
+                        'endpoint': 'order_book',\
+                        'symbol': symbol
+                    },\
+                    {\
+                        'endpoint': 'kline',\
+                        'symbol': symbol,\
+                        'interval': interval\
+                    },\
+                    {\
+                        'endpoint': 'trades',\
+                        'symbol': symbol
+                    },\
+                    {\
+                        'endpoint': 'ticker',\
+                        'symbol': symbol
+                    }\
+            ]
+    
+    wsm = Ccxw('binance',\
+                streams,\
+                result_max_len=5,\
+                data_max_len=10)
 
     wsm.start()  # Start getting data
 
     time.sleep(2)  # Wait for available data
 
     for i in range(0, 10):
-        data = wsm.get_current_data()
-        pprint.pprint(data, sort_dicts=False)
-        time.sleep(1)
+        for stream in streams:
+            interval = 'none'
+            if 'interval' in stream:
+                interval = stream['interval']
+            data = wsm.get_current_data(stream['endpoint'], stream['symbol'], interval)
+            pprint.pprint(data, sort_dicts=False)
+            print('----------------------------------')
+            time.sleep(1)
+        print('============================================================')
 
     wsm.stop()  # Stop getting data
     ```
     """
 
-    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
-    def __init__(self, exchange, endpoint=None, symbol=None, trading_type: str='SPOT',\
-        testmode=False, api_key: str=None, api_secret: str=None, result_max_len: int=5,\
-        update_speed: str='100ms', interval: str='1m', data_max_len: int=400, debug: bool=False):
+    def __init__(self, exchange, streams=list[dict], trading_type: str='SPOT',\
+        testmode: bool=False, result_max_len: int=5,\
+        data_max_len: int=400, debug: bool=False):
         """
         Ccxw constructor
         ================
             :param self: Ccxw instance.
             :param exchange: str exchange name.
-            :param endpoint: str only allowed 'order_book' | 'kline' | 'trades' | 'ticker'.
-            :param symbol: str unified symbol.
+            :param streams: list[dict]
+                                    dicts must have this struct.
+                                        {
+                                            'endpoint': str only allowed 'order_book' | 'kline' |\
+                                                'trades' | 'ticker',
+                                            'symbol': str unified symbol.,
+                                            'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                                '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' |\
+                                                '3d' | '1w' | '1mo' for 'kline' endpoint is\
+                                                    mandatory.
+                                        }
             :param trading_type: str only allowed 'SPOT'.
             :param testmode: bool.
-            :param api_key: str Not necessary only for future features.
-            :param api_secret: str Not necessary only for future features.
             :param result_max_len: int Max return values > 1 and <= data_max_len.
-            :param update_speed: str only allowed '100ms' | '1000ms' Only for some endpoints.
-            :param interval: str only allowed '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' 
-                | '4H' | '6H' | '8H' | '12H' | '1D' | '3D' | '1W' | '1M'.
             :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
             :param debug: bool Output verbosity.
 
@@ -87,72 +145,44 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         if exchange not in Ccxw.get_supported_exchanges():
             raise ValueError('The exchange ' + str(exchange) + ' is not supported.')
 
-        if endpoint not in Ccxw.get_supported_endpoints():
-            raise ValueError('The endpoint ' + str(endpoint) + ' is not supported.')
+        self.__key_sel = {}
 
-        self.__key_sel = 'SEL_' + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f"))\
-            + '_' + str(random.randint(90000,99999)) + '_' + str(random.randint(90000,99999))
-
-        if symbol is not None:
-            self.__key_sel = self.__key_sel + symbol.replace("/","").upper()
-
-        if not (isinstance(symbol,str) and len(symbol) > 0):
-            raise ValueError('Bad symbol: ' + str(symbol))
-
-        self.__exchange = exchange
+        self.__exchange = None
         self.__ws = None
         self.__ws_url = None
-        self.__ws_endpoint = endpoint
         self.__ws_endpoint_url = None
         self.__ws_endpoint_on_auth_vars = None
         self.__ws_endpoint_on_open_vars = None
         self.__ws_endpoint_on_close_vars = None
         self.__ws_ping_interval = 0
         self.__ws_ping_timeout = None
-        self.__ws_symbol = symbol
         self.__socket = None
         self.__thread = None
         self.__stop_launcher = False # Used in methods self.start() and self.stop()
         self.__conn_db = None
         self.__cursor_db = None
-        self.__ws_temp_data = None
         self.min_proc_time_ms = None
         self.max_proc_time_ms = 0
+        self.__trading_type = 'SPOT'
 
         self.__result_max_len = result_max_len
-        self.__update_speed = update_speed
-        self.__interval = interval
         self.__ws_ended = True
 
-        if exchange in self.get_supported_exchanges():
+        self.__ws_streams = streams
 
-            self.__api_key = api_key
-            self.__api_secret = api_secret
+        if exchange in self.get_supported_exchanges():
+            self.__exchange = exchange
             self.__testmode = testmode
 
             self.__trading_type = trading_type
 
-            self.__auxiliary_class = getattr(importlib.import_module\
-                (self.__exchange, package=self.__exchange),\
-                self.__exchange.capitalize() + 'CcxwAuxClass')\
-                (endpoint=self.__ws_endpoint, symbol=self.__ws_symbol, testmode=self.__testmode,\
-                api_key=self.__api_key, api_secret=self.__api_secret,\
+            self.__auxiliary_class = CcxwExchangeConfig.exchange_classes[self.__exchange]\
+                (streams=self.__ws_streams, trading_type=self.__trading_type,\
+                testmode=self.__testmode,\
                 result_max_len=self.__result_max_len,\
-                update_speed=self.__update_speed, interval=self.__interval,\
                 data_max_len=self.__data_max_len, debug=self.__debug)
 
-            self.__api_keys = {} #Reserved for future features
-
-            if api_key is not None:
-                self.__api_keys['api_key'] = api_key
-
-            if api_secret is not None:
-                self.__api_keys['api_secret'] = api_secret
-
-            if not self.__auxiliary_class.if_symbol_supported():
-                raise ValueError('Symbol ' + str(symbol) + ' have not '\
-                + str(self.__trading_type.lower())\
-                + ' market in ' + str(exchange) + ' exchange.')
+            self.__init_key_selector()
 
             self.__database_name = '/tmp/temp_database_'\
                 + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f"))\
@@ -171,58 +201,56 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
 
             if isinstance(self.__ws_url,str) and len(self.__ws_url) > 0:
 
-                if self.__ws_endpoint in Ccxw.get_supported_endpoints():
-                    __get_websocket_endpoint_data = (
-                        self.__auxiliary_class.get_websocket_endpoint_path()
-                    )
-                    if __get_websocket_endpoint_data is not None\
-                        and isinstance(__get_websocket_endpoint_data,dict):
-                        if 'ws_endpoint_url' in __get_websocket_endpoint_data:
-                            self.__ws_endpoint_url = (
-                                __get_websocket_endpoint_data['ws_endpoint_url']
-                            )
+                __get_websocket_endpoint_data = (
+                    self.__auxiliary_class.get_websocket_endpoint_path()
+                )
 
-                        if 'ws_endpoint_on_open_vars' in __get_websocket_endpoint_data:
-                            self.__ws_endpoint_on_open_vars = (
-                                __get_websocket_endpoint_data['ws_endpoint_on_open_vars']
-                            )
+                if __get_websocket_endpoint_data is not None\
+                    and isinstance(__get_websocket_endpoint_data,dict):
+                    if 'ws_endpoint_url' in __get_websocket_endpoint_data:
+                        self.__ws_endpoint_url = (
+                            __get_websocket_endpoint_data['ws_endpoint_url']
+                        )
 
-                        if 'ws_endpoint_on_close_vars' in __get_websocket_endpoint_data:
-                            self.__ws_endpoint_on_close_vars = (
-                                __get_websocket_endpoint_data['ws_endpoint_on_close_vars']
-                            )
+                    if 'ws_endpoint_on_open_vars' in __get_websocket_endpoint_data:
+                        self.__ws_endpoint_on_open_vars = (
+                            __get_websocket_endpoint_data['ws_endpoint_on_open_vars']
+                        )
 
-                        self.__socket = self.__ws_url + self.__ws_endpoint_url
+                    if 'ws_endpoint_on_close_vars' in __get_websocket_endpoint_data:
+                        self.__ws_endpoint_on_close_vars = (
+                            __get_websocket_endpoint_data['ws_endpoint_on_close_vars']
+                        )
 
-                        if 'ws_ping_interval' in __get_websocket_endpoint_data:
-                            self.__ws_ping_interval = (
-                                __get_websocket_endpoint_data['ws_ping_interval']
-                            )
+                    self.__socket = self.__ws_url + self.__ws_endpoint_url
 
-                        if 'ws_ping_timeout' in __get_websocket_endpoint_data:
-                            self.__ws_ping_timeout = (
-                                __get_websocket_endpoint_data['ws_ping_timeout']
-                            )
+                    if 'ws_ping_interval' in __get_websocket_endpoint_data:
+                        self.__ws_ping_interval = (
+                            __get_websocket_endpoint_data['ws_ping_interval']
+                        )
 
-                        if 'ws_endpoint_on_auth_vars' in __get_websocket_endpoint_data:
-                            self.__ws_endpoint_on_auth_vars = (
-                                __get_websocket_endpoint_data['ws_endpoint_on_auth_vars']
-                            )
-                    else:
-                        raise ValueError('Supported endpoints '\
-                            + str(Ccxw.get_supported_endpoints()))
-                else:
-                    raise ValueError('Supported endpoints ' + str(Ccxw.get_supported_endpoints()))
+                    if 'ws_ping_timeout' in __get_websocket_endpoint_data:
+                        self.__ws_ping_timeout = (
+                            __get_websocket_endpoint_data['ws_ping_timeout']
+                        )
+
+                    if 'ws_endpoint_on_auth_vars' in __get_websocket_endpoint_data:
+                        self.__ws_endpoint_on_auth_vars = (
+                            __get_websocket_endpoint_data['ws_endpoint_on_auth_vars']
+                        )
             else:
-                raise ValueError('The exchange ' + str(exchange) + ' have not websocket api.')
+                raise ValueError('0 The exchange ' + str(exchange) + ' have not websocket api.')
 
         else:
-            raise ValueError('The exchange ' + str(exchange) + ' have not websocket api.')
+            raise ValueError('1 The exchange ' + str(exchange) + ' have not websocket api.')
 
     def __del__(self):
 
         if not self.__stop_launcher:
             self.stop()
+
+        # if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
+        #     self.__auxiliary_class.stop()
 
         if hasattr(self,'__conn_db') and self.__conn_db is not None:
             self.__conn_db.commit()
@@ -232,18 +260,35 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
             if os.path.exists(self.__database_name):
                 os.remove(self.__database_name)
 
-    def get_exchange_info(self, full_list=False):
+        del self.__auxiliary_class
+
+    def __init_key_selector(self):
+        result = False
+
+        for stream in self.__ws_streams:
+            __index = None
+            __interval = 'none'
+            if 'interval' in stream:
+                __interval = stream['interval']
+
+            __index = self.__auxiliary_class.get_stream_index(stream['endpoint'],\
+                                                              stream['symbol'],\
+                                                              __interval)
+
+            self.__key_sel[__index] = __index
+        return result
+
+    def get_exchange_info(self):
         """
         get_exchange_info
         =================
             This function get exchange info. 
-                :param full_list: bool.
                 :return dict: Return exchange info.
         """
 
         result = None
 
-        result = self.__auxiliary_class.get_exchange_info(full_list)
+        result = self.__auxiliary_class.get_exchange_info()
 
         return result
 
@@ -273,6 +318,10 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         """
         result = False
 
+        if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'start'):
+            self.__auxiliary_class.start()
+            time.sleep(2)
+
         try:
             self.__stop_launcher = False # Used in self.stop()
             self.__thread = threading.Thread(target=self.__websocket_launcher,args=(self.__socket,))
@@ -300,12 +349,19 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         __time_counter = 0
         __time_limit = 90
 
-        if self.__ws and self.__ws_endpoint_on_close_vars is not None\
-            and isinstance(self.__ws_endpoint_on_close_vars,str)\
+        if self.__ws and self.__ws_endpoint_on_close_vars is not None:
+            if isinstance(self.__ws_endpoint_on_close_vars, str)\
                 and len(self.__ws_endpoint_on_close_vars) > 0:
-            self.__ws.send(self.__ws_endpoint_on_close_vars)
+                self.__ws.send(self.__ws_endpoint_on_close_vars)
+            if isinstance(self.__ws_endpoint_on_close_vars, list)\
+                and len(self.__ws_endpoint_on_close_vars) > 0:
+                for __close_vars in self.__ws_endpoint_on_close_vars:
+                    self.__ws.send(__close_vars)
 
         time.sleep(2)
+
+        if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
+            self.__auxiliary_class.stop()
 
         self.__stop_launcher = True
 
@@ -332,14 +388,12 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         if self.__thread is not None:
             self.__thread.join(time_to_wait)
 
-        if hasattr(self.__auxiliary_class, 'stop'):
-            self.__auxiliary_class.stop()
-
-        del self.__auxiliary_class
+        # print('ENTRE: 8888')
+        # pprint.pprint(str(self.__auxiliary_class))
 
         return result
 
-    def __websocket_launcher(self,socket):
+    def __websocket_launcher(self, socket):
         """
         Initialize temporal database and starting getting data from websocket
         ======================================================================
@@ -354,15 +408,18 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
 
         try:
             self.__cursor_db = self.__conn_db.cursor()
-            __sql_create_table_db = 'DROP TABLE IF EXISTS ' + str(self.__table_name) + ';\n'
-            __sql_create_table_db = __sql_create_table_db + 'CREATE TABLE IF NOT EXISTS '
-            __sql_create_table_db = __sql_create_table_db + str(self.__table_name)
-            __sql_create_table_db = __sql_create_table_db + '(key_data VARCHAR(40) NOT NULL'
-            __sql_create_table_db = __sql_create_table_db + ' PRIMARY KEY, value_data TEXT NULL);\n'
-            __sql_create_table_db = __sql_create_table_db + 'INSERT INTO ' + str(self.__table_name)
-            __sql_create_table_db = __sql_create_table_db + ' (key_data,value_data) VALUES ("'
-            __sql_create_table_db = __sql_create_table_db + str(self.__key_sel) + '",NULL);\n'
+
+            __sql_create_table_db = f'DROP TABLE IF EXISTS {self.__table_name};\n'
+            __sql_create_table_db += f'CREATE TABLE IF NOT EXISTS {self.__table_name} \
+                                        (key_data VARCHAR(40) PRIMARY KEY, value_data TEXT);\n'
+
             self.__cursor_db.executescript(__sql_create_table_db)
+
+            for __key_data in self.__key_sel.values():
+                __sql_insert_data = f'INSERT INTO {self.__table_name} \
+                                        (key_data, value_data) VALUES (?, NULL);\n'
+                self.__cursor_db.execute(__sql_insert_data, (str(__key_data),))
+
             self.__conn_db.commit()
             result = True
         except Exception as exc: # pylint: disable=broad-except
@@ -392,7 +449,7 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
 
         return result
 
-    def __manage_websocket_open(self,ws):
+    def __manage_websocket_open(self, ws):
         """
         websocket.WebSocketApp on_open function.
         ========================================
@@ -405,20 +462,31 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         result = False
 
         if self.__ws_endpoint_on_auth_vars is not None\
-            and isinstance(self.__ws_endpoint_on_auth_vars,str):
+            and isinstance(self.__ws_endpoint_on_auth_vars, str):
             try:
                 ws.send(self.__ws_endpoint_on_auth_vars)
                 result = True
             except Exception: # pylint: disable=broad-except
                 result = False
 
-        elif self.__ws_endpoint_on_open_vars is not None\
-            and isinstance(self.__ws_endpoint_on_open_vars,str):
-            try:
-                ws.send(self.__ws_endpoint_on_open_vars)
-                result = True
-            except Exception: # pylint: disable=broad-except
-                result = False
+        elif self.__ws_endpoint_on_open_vars is not None:
+            if isinstance(self.__ws_endpoint_on_open_vars, str):
+                try:
+                    ##print('OV: ' + self.__ws_endpoint_on_open_vars)
+                    ws.send(self.__ws_endpoint_on_open_vars)
+                    result = True
+                except Exception: # pylint: disable=broad-except
+                    result = False
+            elif isinstance(self.__ws_endpoint_on_open_vars, list):
+                try:
+                    for __send_data in self.__ws_endpoint_on_open_vars:
+                        ##print('OV: ' + str(__send_data))
+                        ws.send(__send_data)
+                        time.sleep(0.14)
+                    result = True
+                except Exception: # pylint: disable=broad-except
+                    result = False
+
         else:
             result = True
 
@@ -460,7 +528,7 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
             + ", error: " + str(error)
         print(err_msg)
 
-    def __manage_websocket_message(self,ws,message_in):
+    def __manage_websocket_message(self, ws, message_in):
         """
         websocket.WebSocketApp on_message function.
         ===========================================
@@ -475,22 +543,59 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
 
         __time_ini = time.time_ns()
 
+        #print(str(message_in))
+
         try:
-            __managed_data = self.__auxiliary_class.manage_websocket_message(ws,message_in)
+            __managed_data = self.__auxiliary_class.manage_websocket_message(ws, message_in)
+
+            #pprint.pprint(__managed_data, sort_dicts=False)
 
             if __managed_data is not None and isinstance(__managed_data,dict)\
                 and 'data' in __managed_data and 'max_proc_time_ms' in __managed_data:
-                self.__ws_temp_data = __managed_data
-                self.__ws_temp_data['min_proc_time_ms'] = self.min_proc_time_ms
-                self.__ws_temp_data['max_proc_time_ms'] = self.max_proc_time_ms
-                __message_out = json.dumps(self.__ws_temp_data)
-                __message_out = gzip.compress(bytes(__message_out,'utf-8'), compresslevel=9)
-                __message_base64 = base64.b64encode(__message_out).decode("ascii")
-                __sql_update = 'UPDATE ' + str(self.__table_name) + ' SET value_data = "'\
-                    + str(__message_base64) + '" WHERE  key_data = "' + str(self.__key_sel) + '" ;'
-                self.__cursor_db = self.__conn_db.cursor()
-                self.__cursor_db.execute(__sql_update)
-                self.__conn_db.commit()
+
+                __endpoint = ''
+                __symbol = ''
+                __interval = 'none'
+
+                if __managed_data['data'] is not None:
+                    if isinstance(__managed_data['data'], list):
+                        if len(__managed_data['data']) > 0:
+                            __endpoint = __managed_data['data'][0]['endpoint']
+                            __symbol = __managed_data['data'][0]['symbol']
+
+                            if 'interval' in __managed_data['data'][0]\
+                                and __managed_data['data'][0]['interval'] is not None:
+                                __interval = __managed_data['data'][0]['interval']
+
+                    elif isinstance(__managed_data['data'], dict):
+                        __endpoint = __managed_data['data']['endpoint']
+                        __symbol = __managed_data['data']['symbol']
+
+                        if 'interval' in __managed_data['data']\
+                            and __managed_data['data']['interval'] is not None:
+                            __interval = __managed_data['data']['interval']
+
+                #print('I: ' + str(__endpoint) + ', ' + str(__symbol) + ', ' + str(__symbol))
+
+                if len(__endpoint) > 0 and len(__symbol) > 0:
+                    __index_key_sel = self.__auxiliary_class.get_stream_index(__endpoint,\
+                                                                            __symbol,\
+                                                                            __interval)
+
+                    __ws_temp_data = __managed_data
+                    __ws_temp_data['min_proc_time_ms'] = self.min_proc_time_ms
+                    __ws_temp_data['max_proc_time_ms'] = self.max_proc_time_ms
+                    __message_out = json.dumps(__ws_temp_data)
+                    __message_out = gzip.compress(bytes(__message_out,'utf-8'), compresslevel=9)
+                    __message_base64 = base64.b64encode(__message_out).decode("ascii")
+                    __sql_update = (
+                        f'UPDATE {self.__table_name} SET value_data = ? WHERE key_data = ?;'
+                    )
+                    self.__cursor_db = self.__conn_db.cursor()
+                    self.__cursor_db.execute(__sql_update,\
+                                             (str(__message_base64),\
+                                              str(self.__key_sel[__index_key_sel])))
+                    self.__conn_db.commit()
 
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))
@@ -507,23 +612,28 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
         if self.__stop_launcher and not self.__ws_ended:
             ws.close()
 
-    def get_current_data(self):
+    def get_current_data(self, endpoint, symbol, interval='none'):
         """
         Ccxw get_current_data function.
-        ===========================================
+        ===============================
             This function get de data from temporal database decode from base64,
             decompress and convert json data in dict and then return this data
                 :param self: Ccxw instance.
+                :param endpoint: str.
+                :param symbol: str.
+                :param interval: str.
 
                 :return: dict with last data.
         """
         result = None
 
-        __sql_select = 'SELECT value_data FROM "' + str(self.__table_name)\
-            + '" WHERE  key_data = "' + str(self.__key_sel) + '" ;'
+        __index_key_sel = self.__auxiliary_class.get_stream_index(endpoint, symbol, interval)
+
+        __sql_select = f'SELECT value_data FROM "{self.__table_name}" WHERE key_data = ?;'
+
         try:
             __local_cursor_db = self.__conn_db.cursor()
-            __local_cursor_db.execute(__sql_select)
+            __local_cursor_db.execute(__sql_select, (str(self.__key_sel[__index_key_sel]),))
             __current_data = __local_cursor_db.fetchone()
 
             if __current_data is not None\
@@ -533,6 +643,32 @@ class Ccxw(): # pylint: disable=too-many-instance-attributes
                 result = (
                     json.loads(gzip.decompress(base64.b64decode(__current_data[0])).decode('utf-8'))
                 )
+
+                if result is not None and isinstance(result, dict) and 'data' in result\
+                    and result['data'] is not None:
+                    __data = result['data']
+                    if isinstance(__data, dict):
+                        if 'symbol' in __data:
+                            __data['symbol'] = self.__auxiliary_class\
+                                .get_unified_symbol_from_symbol(__data['symbol'])
+
+                        if 'interval' in __data:
+                            __data['interval'] = self.__auxiliary_class\
+                                .get_unified_interval_from_interval(__data['interval'])
+
+                    elif isinstance(__data, list):
+                        for res in __data:
+                            if isinstance(res, dict):
+                                if 'symbol' in res:
+                                    res['symbol'] = self.__auxiliary_class\
+                                        .get_unified_symbol_from_symbol(res['symbol'])
+
+                                if 'interval' in res:
+                                    res['interval'] = self.__auxiliary_class\
+                                        .get_unified_interval_from_interval(res['interval'])
+
+                    result['data'] = __data
+
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))
 

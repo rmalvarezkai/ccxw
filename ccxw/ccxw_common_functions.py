@@ -9,6 +9,7 @@ Date: 2023-10-31
 import urllib.parse
 import urllib.request
 import json
+import socket
 
 def is_json(myjson):
     """
@@ -23,12 +24,31 @@ def is_json(myjson):
 
     result = False
 
-    if isinstance(myjson,(str,bytes)):
+    if myjson is not None and isinstance(myjson,(str,bytes)):
         try:
             json.loads(myjson)
             result = True
         except Exception: # pylint: disable=broad-except
             result = False
+
+    return result
+
+def is_convertible_to_json(myvar):
+    """
+    is_convertible_to_json
+    ======================
+        This function check if myvar is convertible to json string.
+            :param myvar:
+
+            :return bool: Return True if myvar is convertible to json string.
+    """
+
+    result = False
+    try:
+        json.dumps(myvar)
+        result = True
+    except Exception: # pylint: disable=broad-except
+        result = False
 
     return result
 
@@ -74,5 +94,27 @@ def file_get_contents_url(url,mode="b",post_data=None,headers=None,timeout=9):
 
     if mode != "b" and result is not None and result is not False and isinstance(result,bytes):
         result = result.decode()
+
+    return result
+
+def is_port_free(port, host='localhost'):
+    """
+    is_port_free
+    ============
+        This function check if port already used
+            :param port: int port number.
+            :param host: str 
+
+            :return bool: Return True if port is free
+    """
+    result = False
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind((host, port))
+        s.close()
+        result = True
+    except Exception: # pylint: disable=broad-except
+        result = False
 
     return result

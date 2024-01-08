@@ -13,45 +13,50 @@ import datetime
 import queue
 import math
 import ccxw.ccxw_common_functions as ccf
+from ccxw.safe_thread_vars import DictSafeThread
+import ccxw
 
-class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
+class BybitCcxwAuxClass():
     """
     Ccxw - CryptoCurrency eXchange Websocket Library BybitCcxwAuxClass
     ==================================================================
         This class contains helper functions for the Ccxw class.
     """
 
-    # pylint: disable=too-many-arguments
-    def __init__(self, endpoint: str=None, symbol: str=None, trading_type: str='SPOT',\
-                 testmode: bool=False, api_key: str=None, api_secret: str=None,\
-                 result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
-                 data_max_len: int=1000, debug: bool=False):
+    def __init__(self,\
+                 streams: list[dict],\
+                 trading_type: str='SPOT',\
+                 testmode: bool=False,\
+                 result_max_len: int=5,\
+                 data_max_len: int=1000,\
+                 debug: bool=False):
         """
         BybitCcxwAuxClass constructor
         =============================
-            Initializes the BybitCcxwAuxClass with the provided parameters.
+            :param self: BybitCcxwAuxClass instance.
+            :param streams: list[dict]
+                                    dicts must have this struct.
+                                        {
+                                            'endpoint': str only allowed 'order_book' | 'kline' |\
+                                                'trades' | 'ticker',
+                                            'symbol': str unified symbol.,
+                                            'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                                '1h' | '2h' | '4h' | '6h' | '12h' | '1d' | '1w' |\
+                                                '1mo' for 'kline' endpoint is mandatory.
+                                        }
 
-                :param self: BybitCcxwAuxClass instance.
-                :param endpoint: str.
-                :param symbol: str unified symbol.
-                :param trading_type: str only allowed 'SPOT'.
-                :param testmode: bool.
-                :param api_key: str Not necesary only for future features.
-                :param api_secret: str Not necesary only for future features.
-                :param result_max_len: int Max return values > 1 and <= trades_max_len.
-                :param update_speed: str only allowed '100ms' | '1000ms' Only for some endpoints.
-                :param interval: str only allowed '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' 
-                    | '4H' | '6H' | '8H' | '12H' | '1D' | '3D' | '1W' | '1M'.
-                :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
-                :param debug: bool Verbose output.
+            :param trading_type: str only allowed 'SPOT'.
+            :param testmode: bool.
+            :param result_max_len: int Max return values > 1 and <= data_max_len.
+            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class BybitCcxwAuxClass.
+            :return: Return a new instance of the Class BybitCcxwAuxClass.
         """
+        __exchange_limit_streams = 10
 
         self.__exchange = os.path.basename(__file__)[:-3]
-        self.__ws_endpoint = endpoint
-        self.__api_key = api_key # pylint: disable=unused-private-member
-        self.__api_secret = api_secret # pylint: disable=unused-private-member
+        self.__ws_streams = streams
         self.__testmode = testmode
 
         self.__exchange_info_cache = {}
@@ -59,7 +64,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         self.__exchange_info_cache['last_get_time'] = 0
 
         self.__debug = debug # pylint: disable=unused-private-member
-        self.__ws_symbol = symbol
+
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
@@ -68,16 +73,13 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
-        self.__update_speed = update_speed
-        self.__interval = interval
 
         self.__result_max_len = min(self.__result_max_len, 500)
 
         self.__result_max_len = max(self.__result_max_len, 1)
 
-        self.__api_type = 'public' # pylint: disable=unused-private-member
+        self.__api_type = 'public'
 
-        self.__exchange_hostname = None # pylint: disable=unused-private-member
         self.__ws_url_api = None
         self.__ws_url_test = None
         self.__ws_url = None # pylint: disable=unused-private-member
@@ -87,11 +89,63 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         self.__ws_endpoint_on_open_vars = None
         self.__ws_endpoint_on_close_vars = None
         self.__ws_endpoint_on_auth_vars = None
-        self.__listen_key = None # pylint: disable=unused-private-member
-        self.__ws_temp_data = None
+        self.__ws_temp_data = DictSafeThread()
+
+        if not self.__check_streams_struct(streams):
+            raise ValueError('The streams struct is not valid' + str(streams))
+
+        if len(streams) > __exchange_limit_streams:
+            raise ValueError('The exchange ' + str(self.__exchange)\
+                             + ' not alowed more than ' + str(__exchange_limit_streams)\
+                             + ' of streams.')
 
     def __del__(self):
         pass
+
+    def __check_streams_struct(self, streams):
+        """
+        __check_streams_struct
+        ======================
+            This function check streams struct
+                :param self: This class instance.
+                :param streams: list[dict]
+                                dicts must have this struct.
+                                    {
+                                        'endpoint': str only allowed 'order_book' | 'kline' |\
+                                            'trades' | 'ticker',
+                                        'symbol': str unified symbol.,
+                                        'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                            '1h' | '2h' | '4h' | '6h' | '12h' | '1d' | '1w' | '1mo'\
+                                            for 'kline' endpoint is mandatory.
+                                    }
+
+                :return bool: True if streams struct is correct otherwise False
+        """
+        result = False
+
+        if streams is not None and isinstance(streams, list) and len(streams) > 0:
+            result = True
+            for stream in streams:
+                result = result and stream is not None\
+                    and isinstance(stream, dict)\
+                    and 'endpoint' in stream\
+                    and stream['endpoint'] is not None\
+                    and isinstance(stream['endpoint'], str)\
+                    and stream['endpoint'] in ccxw.Ccxw.get_supported_endpoints()\
+                    and 'symbol' in stream\
+                    and stream['symbol'] is not None\
+                    and isinstance(stream['symbol'], str)\
+                    and self.if_symbol_supported(stream['symbol'])
+
+                if result and stream['endpoint'] == 'kline':
+                    result = 'interval' in stream\
+                        and stream['interval'] is not None\
+                        and isinstance(stream['interval'], str)\
+                        and stream['interval'] in\
+                            ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h',\
+                             '6h', '12h', '1d', '1w', '1mo']
+
+        return result
 
     def get_websocket_url(self):
         """
@@ -104,8 +158,11 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         result = None
 
-        self.__ws_url_api = 'wss://stream.bybit.com/v5/public/' + self.__trading_type.lower()
-        self.__ws_url_test = 'wss://stream-testnet.bybit.com/v5/public/'\
+        self.__ws_url_api = 'wss://stream.bybit.com/v5/'\
+            + str(self.__api_type) + '/'\
+            + self.__trading_type.lower()
+        self.__ws_url_test = 'wss://stream-testnet.bybit.com/v5/'\
+            + str(self.__api_type) + '/'\
             + self.__trading_type.lower()
 
         result = self.__ws_url_api
@@ -135,7 +192,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         return result
 
-    def get_exchange_info(self, full_list=False):
+    def get_exchange_info(self):
         """
         get_exchange_info
         =================
@@ -146,7 +203,6 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         result = None
 
-        full_list = True
         max_last_get_time = 7200
 
         current_time = int(time.time())
@@ -161,13 +217,6 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
             __l_endpoint = '/v5/market/instruments-info?category=' + self.__trading_type.lower()
 
             __l_url_point = __l_url_api + __l_endpoint
-
-            if full_list:
-                __l_url_point = __l_url_api + __l_endpoint
-            else:
-                if self.__ws_symbol is not None and isinstance(self.__ws_symbol,str):
-                    __l_url_point = __l_url_point + '&symbol='\
-                        + str(self.__ws_symbol.replace('/','').upper())
 
             __data = ccf.file_get_contents_url(__l_url_point)
 
@@ -191,7 +240,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         """
 
         result = None
-        __main_data = self.get_exchange_info(True)
+        __main_data = self.get_exchange_info()
 
         if __main_data is not None and isinstance(__main_data,dict):
             if 'result' in __main_data and isinstance(__main_data['result'],dict)\
@@ -213,7 +262,27 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         return result
 
-    def if_symbol_supported(self):
+    def get_unified_symbol_from_symbol(self, symbol):
+        """
+        get_unified_symbol_from_symbol
+        ==============================
+            This function get unified symbol from symbol.
+                :param self: This class instance.
+                :param symbol: str.
+                :return str: Return unified symbol.
+        """
+        result = symbol
+
+        full_list_symbols = self.get_exchange_full_list_symbols(False)
+
+        for symbol_rpl in full_list_symbols:
+            if symbol.replace('/', '').lower() == symbol_rpl.replace('/', '').lower():
+                result = symbol_rpl
+                break
+
+        return result
+
+    def if_symbol_supported(self, symbol):
         """
         if_symbol_supported
         ===================
@@ -226,12 +295,94 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         __data = self.get_exchange_full_list_symbols()
 
-        if isinstance(__data,list) and self.__ws_symbol in __data:
+        if isinstance(__data,list) and symbol in __data:
             result = True
 
         return result
 
-    def get_websocket_endpoint_path(self): # pylint: disable=too-many-statements, duplicate-code
+    def get_stream_index(self, endpoint, symbol, interval: str='none'):
+        """
+        get_stream_index
+        ================
+            This function return a stream index for use in dict.
+                :param self: This class instance.
+                :param endpoint: str.
+                :param symbol: str unified symbol.
+                :param interval: str.
+                :return str: Return stream index
+        """
+        result = 'stream'
+
+        if interval is None:
+            interval = 'none'
+
+        result = result + '_' + endpoint + '_'\
+            + self.get_unified_symbol_from_symbol(symbol) + '_'\
+            + self.get_unified_interval_from_interval(interval)
+
+        result = result.replace('/','').lower()
+
+        return result
+
+    def __get_interval_from_unified_interval(self, interval):
+        result = '1'
+        result = interval
+        if 'm' in result:
+            result = result.replace('m', '')
+        elif 'h' in result or 'H' in result:
+            result = result.replace('h', '').replace('H','')
+            result = 60 * int(result)
+        elif 'd' in result or 'D' in result:
+            result = 'D'
+        elif 'w' in result or 'W' in result:
+            result = 'W'
+        if 'M' in result:
+            result = 'M'
+
+        result = str(result)
+
+        return result
+
+    def get_unified_interval_from_interval(self, interval):
+        """
+        get_unified_interval_from_interval
+        ==================================
+            This function get unified interval from interval.
+                :param self: This class instance.
+                :param interval: str.
+                :return str: Return unified interval.
+        """
+
+        result = interval
+
+        if result is not None:
+            if result.isnumeric():
+                result = int(result)
+
+                if result == 1:
+                    result = '1m'
+                elif result < 60:
+                    result = str(result) + 'm'
+                else:
+                    result = str(round(result/60)) + 'h'
+
+            elif 'M' in result:
+                result = '1mo'
+
+            elif 'w' in result or 'W' in result:
+                result = '1w'
+
+            elif 'd' in result or 'D' in result:
+                if result.lower() == 'd':
+                    result = '1d'
+                else:
+                    result = result.lower()
+
+            result = str(result)
+
+        return result
+
+    def get_websocket_endpoint_path(self):
         """
         get_websocket_endpoint_path
         ===========================
@@ -242,79 +393,57 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         result = None
 
-        if not self.__update_speed in ('100ms', '1000ms'):
-            self.__update_speed = '1000ms'
-
         __send_data_vars = None
+        __send_data_vars = {}
+        __send_data_vars['op'] = 'subscribe'
+        __send_data_vars['args'] = []
+        __send_data_vars['req_id'] = str(time.time_ns())
 
-        if self.__ws_endpoint == 'order_book':
-            result = True
+        self.__ws_endpoint_url = ''
 
-            if self.__update_speed != '100ms' or self.__update_speed != '1000ms':
-                self.__update_speed = '1000ms'
+        for stream in self.__ws_streams:
+            interval = 'none'
 
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['op'] = 'subscribe'
-            __send_data_vars['args'] = []
-            __send_data_vars['args'].append('orderbook.' + str(50) + '.'\
-                                            + self.__ws_symbol.replace("/","").upper())
-            __send_data_vars['req_id'] = str(time.time_ns())
+            if stream['endpoint'] == 'order_book':
+                result = True
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
-        elif self.__ws_endpoint == 'kline':
-            result = True
-            interval_out = self.__interval
-            if 'm' in interval_out:
-                interval_out = interval_out.replace('m', '')
-            elif 'h' in interval_out or 'H' in interval_out:
-                interval_out = interval_out.replace('h', '').replace('H','')
-                interval_out = 60 * int(interval_out)
-            elif 'd' in interval_out or 'D' in interval_out:
-                interval_out = 'D'
-            elif 'w' in interval_out or 'W' in interval_out:
-                interval_out = 'W'
-            if 'M' in interval_out:
-                interval_out = 'M'
+                __send_data_vars['args'].append('orderbook.' + str(50) + '.'\
+                                                + stream['symbol'].replace("/","").upper())
 
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['op'] = 'subscribe'
-            __send_data_vars['args'] = []
-            __send_data_vars['args'].append('kline.' + str(interval_out)\
-                                            + '.' + self.__ws_symbol.replace("/","").upper())
-            __send_data_vars['req_id'] = str(time.time_ns())
+            elif stream['endpoint'] == 'kline':
+                result = True
+                interval = stream['interval']
+                interval_out = self.__get_interval_from_unified_interval(interval)
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
-        elif self.__ws_endpoint == 'trades':
-            result = True
+                __send_data_vars['args'].append('kline.' + str(interval_out)\
+                                                + '.' + stream['symbol'].replace("/","").upper())
 
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['op'] = 'subscribe'
-            __send_data_vars['args'] = []
-            __send_data_vars['args'].append('publicTrade' + '.'\
-                                            + self.__ws_symbol.replace("/","").upper())
-            __send_data_vars['req_id'] = str(time.time_ns())
+                self.__ws_endpoint_url = ''
+                self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+            elif stream['endpoint'] == 'trades':
+                result = True
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+                __send_data_vars['args'].append('publicTrade' + '.'\
+                                                + stream['symbol'].replace("/","").upper())
 
-        elif self.__ws_endpoint == 'ticker':
-            result = True
+                self.__ws_endpoint_url = ''
+                self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
 
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['op'] = 'subscribe'
-            __send_data_vars['args'] = []
-            __send_data_vars['args'].append('tickers' + '.'\
-                                            + self.__ws_symbol.replace("/","").upper())
-            __send_data_vars['req_id'] = str(time.time_ns())
+            elif stream['endpoint'] == 'ticker':
+                result = True
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+                __send_data_vars['args'].append('tickers' + '.'\
+                                                + stream['symbol'].replace("/","").upper())
+
+                self.__ws_endpoint_url = ''
+                self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+
+            __stream_index = self.get_stream_index(stream['endpoint'],\
+                                                     stream['symbol'],\
+                                                     interval=interval)
+            self.__ws_temp_data[__stream_index] = None
+
+        self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
 
         if __send_data_vars is not None and isinstance(__send_data_vars,dict):
             self.__ws_endpoint_on_close_vars = __send_data_vars
@@ -329,15 +458,19 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         return result
 
-    def __init_order_book_data(self,temp_data):
+    def __init_order_book_data(self, temp_data):
 
         result = False
-        self.__ws_temp_data = temp_data
+
+        __symbol = temp_data['topic'].split('.')[2]
+        __stream_index = self.get_stream_index('order_book', __symbol)
+
+        self.__ws_temp_data[__stream_index] = temp_data
         result = True
 
         return result
 
-    def manage_websocket_message_order_book(self,data):
+    def manage_websocket_message_order_book(self, data):
         """
         manage_websocket_message_order_book
         ===================================
@@ -355,14 +488,21 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         __diff_update_id = 0
         __data_type = 'snapshot'
 
+        __symbol = ''
+        __stream_index = None
+
         if __temp_data is not None and isinstance(__temp_data,dict)\
-            and 'type' in __temp_data:
-            if self.__ws_temp_data is None or __temp_data['type'] == 'snapshot':
+            and 'type' in __temp_data and len(__temp_data['topic'].split('.')) >= 3:
+            __symbol = __temp_data['topic'].split('.')[2]
+            __stream_index = self.get_stream_index('order_book', __symbol)
+
+            if self.__ws_temp_data[__stream_index] is None or __temp_data['type'] == 'snapshot':
                 if self.__init_order_book_data(__temp_data):
                     __proc_data = True
-            elif self.__manage_websocket_diff_data(__temp_data):
+            elif self.__ws_temp_data[__stream_index] is not None\
+                and self.__manage_websocket_diff_data(__temp_data):
                 __diff_update_id = (
-                    __temp_data['data']['u'] - self.__ws_temp_data['data']['u']
+                    __temp_data['data']['u'] - self.__ws_temp_data[__stream_index]['data']['u']
                 )
                 __data_type = 'update'
                 __proc_data = True
@@ -370,17 +510,17 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         if __proc_data:
             __message_out = None
             __message_out = {}
-            __message_out['endpoint'] = self.__ws_endpoint
+            __message_out['endpoint'] = 'order_book'
             __message_out['exchange'] = self.__exchange
-            __message_out['symbol'] = self.__ws_symbol
+            __message_out['symbol'] = __symbol
             __message_out['interval'] = None
-            __message_out['last_update_id'] = self.__ws_temp_data['data']['u']
+            __message_out['last_update_id'] = self.__ws_temp_data[__stream_index]['data']['u']
             __message_out['diff_update_id'] = __diff_update_id
             __message_out['bids'] = (
-                self.__ws_temp_data['data']['b'][:self.__result_max_len]
+                self.__ws_temp_data[__stream_index]['data']['b'][:self.__result_max_len]
             )
             __message_out['asks'] = (
-                self.__ws_temp_data['data']['a'][:self.__result_max_len]
+                self.__ws_temp_data[__stream_index]['data']['a'][:self.__result_max_len]
             )
             __message_out['type'] = __data_type
             __current_datetime = datetime.datetime.utcnow()
@@ -408,19 +548,30 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         __temp_data = data
         __proc_data = False
 
+        __symbol = ''
+        __stream_index = None
+
         if __temp_data is not None and isinstance(__temp_data,dict):
             if 'type' in __temp_data and 'data' in __temp_data\
-                and isinstance(__temp_data['data'],list) and len(__temp_data['data']) > 0:
-                if self.__ws_temp_data is None or not isinstance(self.__ws_temp_data,dict):
-                    self.__ws_temp_data = {}
+                and isinstance(__temp_data['data'],list) and len(__temp_data['data']) > 0\
+                and len(__temp_data['topic'].split('.')) >= 3:
+
+                __symbol = __temp_data['topic'].split('.')[2]
+                __interval = __temp_data['topic'].split('.')[1]
+                __stream_index = self.get_stream_index('kline', __symbol, __interval)
+
+                if self.__ws_temp_data[__stream_index] is None\
+                    or not isinstance(self.__ws_temp_data[__stream_index],dict):
+
+                    self.__ws_temp_data[__stream_index] = {}
 
                 for i in range(0,len(__temp_data['data'])):
                     __message_add = None
                     __message_add = {}
-                    __message_add['endpoint'] = self.__ws_endpoint
+                    __message_add['endpoint'] = 'kline'
                     __message_add['exchange'] = self.__exchange
-                    __message_add['symbol'] = self.__ws_symbol
-                    __message_add['interval'] = self.__interval
+                    __message_add['symbol'] = __symbol
+                    __message_add['interval'] = __interval
                     __message_add['last_update_id'] = int(__temp_data['ts'])
                     __message_add['open_time'] = int(__temp_data['data'][i]['start'])
                     __message_add['close_time'] = int(__temp_data['data'][i]['end'])
@@ -440,13 +591,17 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                     __message_add['volume'] = __temp_data['data'][i]['volume']
                     __message_add['is_closed'] = __temp_data['data'][i]['confirm']
 
-                    self.__ws_temp_data[int(__message_add['open_time'])] = __message_add
+                    self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = (
+                        __message_add
+                    )
 
-                while len(self.__ws_temp_data) > self.__data_max_len:
-                    __first_key = min(list(self.__ws_temp_data.keys()))
-                    __nc = self.__ws_temp_data.pop(__first_key,None)
+                while len(self.__ws_temp_data[__stream_index]) > self.__data_max_len:
+                    __first_key = min(list(self.__ws_temp_data[__stream_index].keys()))
+                    __nc = self.__ws_temp_data[__stream_index].pop(__first_key,None)
 
-                __message_out = list(self.__ws_temp_data.values())
+                __message_out = (
+                    list(self.__ws_temp_data[__stream_index].values())[:self.__result_max_len]
+                )
 
                 result = __message_out
 
@@ -467,20 +622,27 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         __temp_data = data
         __proc_data = False
 
+        __symbol = ''
+        __stream_index = None
+
         if __temp_data is not None and isinstance(__temp_data,dict):
             if 'ts' in __temp_data and 'data' in __temp_data\
-                and isinstance(__temp_data['data'],list) and len(__temp_data['data']) > 0:
+                and isinstance(__temp_data['data'],list) and len(__temp_data['data']) > 0\
+                and len(__temp_data['topic'].split('.')) >= 2:
 
-                if self.__ws_temp_data is None:
-                    self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
+                __symbol = __temp_data['topic'].split('.')[1]
+                __stream_index = self.get_stream_index('trades', __symbol)
+
+                if self.__ws_temp_data[__stream_index] is None:
+                    self.__ws_temp_data[__stream_index] = queue.Queue(maxsize=self.__data_max_len)
 
                 for i in range(len(__temp_data['data']) - 1,-1,-1):
                     __message_add = None
                     __message_add = {}
-                    __message_add['endpoint'] = self.__ws_endpoint
+                    __message_add['endpoint'] = 'trades'
                     __message_add['exchange'] = self.__exchange
-                    __message_add['symbol'] = self.__ws_symbol
-                    __message_add['interval'] = self.__interval
+                    __message_add['symbol'] = __symbol
+                    __message_add['interval'] = None
                     __message_add['event_time'] = __temp_data['ts']
                     __message_add['trade_id'] = str(__temp_data['data'][i]['i'])
                     __message_add['price'] = str(__temp_data['data'][i]['p'])
@@ -495,19 +657,19 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                     )
                     __message_add['side_of_taker'] = __temp_data['data'][i]['S'].upper()
 
-                    if self.__ws_temp_data.full():
-                        self.__ws_temp_data.get(True,1)
+                    if self.__ws_temp_data[__stream_index].full():
+                        self.__ws_temp_data[__stream_index].get(True,1)
 
-                    self.__ws_temp_data.put(__message_add,True,5)
+                    self.__ws_temp_data[__stream_index].put(__message_add,True,5)
 
-                    __message_out = list(self.__ws_temp_data.queue)
-                    __message_out.reverse()
+                    __message_out = list(self.__ws_temp_data[__stream_index].queue)
+                    ##__message_out.reverse()
 
-                    result = __message_out
+                    result = __message_out[:self.__result_max_len]
 
         return result
 
-    def manage_websocket_message_ticker(self,data):
+    def manage_websocket_message_ticker(self, data):
         """
         manage_websocket_message_ticker
         ===============================
@@ -522,18 +684,25 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         __temp_data = data
         __proc_data = False
 
+        __symbol = ''
+        __stream_index = None
+
         if __temp_data is not None and isinstance(__temp_data,dict):
             if 'cs' in __temp_data and 'data' in __temp_data\
-                and isinstance(__temp_data['data'],dict) and len(__temp_data['data']) > 0:
+                and isinstance(__temp_data['data'],dict) and len(__temp_data['data']) > 0\
+                and len(__temp_data['topic'].split('.')) >= 2:
 
-                self.__ws_temp_data = __temp_data
+                __symbol = __temp_data['topic'].split('.')[1]
+                __stream_index = self.get_stream_index('ticker', __symbol)
+
+                self.__ws_temp_data[__stream_index] = __temp_data
 
                 __message_add = None
                 __message_add = {}
-                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['endpoint'] = 'ticker'
                 __message_add['exchange'] = self.__exchange
-                __message_add['symbol'] = self.__ws_symbol
-                __message_add['interval'] = self.__interval
+                __message_add['symbol'] = __symbol
+                __message_add['interval'] = None
                 __message_add['event_type'] = '24hrTicker'
                 __message_add['event_time'] = __temp_data['cs']
                 __message_add['event_time_date'] = (
@@ -595,9 +764,25 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
             if ccf.is_json(message_in):
                 __temp_data = json.loads(message_in)
-                __proc_data = False
 
-                if self.__ws_endpoint == 'order_book':
+                __endpoint = 'NONE'
+                if isinstance(__temp_data, dict):
+                    if 'topic' in __temp_data\
+                        and __temp_data['topic'] is not None\
+                        and isinstance(__temp_data['topic'], str):
+
+                        __tmp_endpoint = __temp_data['topic'].split('.')[0]
+
+                        if __tmp_endpoint == 'orderbook':
+                            __endpoint = 'order_book'
+                        elif __tmp_endpoint == 'kline':
+                            __endpoint = 'kline'
+                        elif __tmp_endpoint == 'publicTrade':
+                            __endpoint = 'trades'
+                        elif __tmp_endpoint == 'tickers':
+                            __endpoint = 'ticker'
+
+                if __endpoint == 'order_book':
                     __message_out = self.manage_websocket_message_order_book(__temp_data)
 
                     result = {}
@@ -605,7 +790,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'kline':
+                elif __endpoint == 'kline':
                     __message_out = self.manage_websocket_message_kline(__temp_data)
 
                     result = {}
@@ -613,7 +798,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'trades':
+                elif __endpoint == 'trades':
                     __message_out = self.manage_websocket_message_trades(__temp_data)
 
                     result = {}
@@ -621,7 +806,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'ticker':
+                elif __endpoint == 'ticker':
                     __message_out = self.manage_websocket_message_ticker(__temp_data)
 
                     result = {}
@@ -634,7 +819,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
 
         return result
 
-    def __manage_websocket_diff_data(self,diff_data):
+    def __manage_websocket_diff_data(self, diff_data):
         """
         __manage_websocket_diff_data
         ============================
@@ -646,8 +831,10 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
         """
 
         result = False
+        __symbol = diff_data['topic'].split('.')[2]
+        __stream_index = self.get_stream_index('order_book', __symbol)
 
-        current_data = self.__ws_temp_data
+        current_data = self.__ws_temp_data[__stream_index]
 
         if isinstance(diff_data,dict) and 'ts' in diff_data and 'data' in diff_data\
             and 'u' in diff_data['data'] and 'seq' in diff_data['data']:
@@ -703,7 +890,7 @@ class BybitCcxwAuxClass(): # pylint: disable=too-many-instance-attributes
                 current_data['data']['a'] = __temp_asks
                 current_data['data']['u'] = diff_data['data']['u']
                 current_data['data']['seq'] = diff_data['data']['seq']
-                self.__ws_temp_data = current_data
+                self.__ws_temp_data[__stream_index] = current_data
                 result = True
 
         return result

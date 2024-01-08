@@ -11,10 +11,14 @@ import os.path
 import getopt
 import sys
 import time
+#import json
 
 import pprint # For debug
 
-from ccxw import ccxw
+from ccxw import Ccxw
+#from ccxw.binance import BinanceCcxwAuxClass
+#from ccxw.dict_safe_thread import DictSafeThread
+#import ccxw.ccxw_common_functions as ccf
 
 def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     """
@@ -23,6 +27,37 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     """
 
     result = 1
+
+    # data = DictSafeThread()
+    # othr = DictSafeThread()
+
+    # data['key'] = 'value'
+    # data[5] = 'Son 5'
+
+    # othr[5] = 'Son 5'
+    # othr['key'] = 'value'
+
+    # print(data)
+
+    # print(str(data))
+
+    # print(str(data['key']))
+    # print(str(data[5]))
+
+    # print('LEN: ' + str(len(data)))
+
+    # sort_dicts = True
+
+    # pprint.pprint(data, sort_dicts=sort_dicts)
+    # pprint.pprint(othr, sort_dicts=sort_dicts)
+
+    # print('EQ: ' + str(data == othr))
+    # print('HASH data: ' + str(hash(data)))
+    # print('HASH othr: ' + str(hash(othr)))
+
+    # return result
+
+
 
     exchange = "NOT"
     symbol_in = "NOT"
@@ -68,6 +103,32 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
         + ", ENDPOINT: " + str(endpoint)
     print(msg_out)
     print('')
+
+
+    # # Esto es para ver el dia que se comenzo a listar el simbolo
+    # symbol = symbol_in.replace('/', '')
+
+    # get_url = (
+    #     f'https://api.binance.com/api/v1/klines?symbol={symbol}&interval={interval}&startTime=0'
+    # )
+
+    # data = ccf.file_get_contents_url(get_url)
+
+    # if ccf.is_json(data):
+    #     data = json.loads(data)
+    # else:
+    #     data = None
+
+    # if data is not None and isinstance(data, list) and len(data) > 0:
+
+    #     date_time = round(int(data[0][0]) / 1000)
+    #     date_date = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(int(date_time)))
+
+    #     print(f'TIME: {date_time}')
+    #     print(f'DATE: {date_date}')
+
+    # return result
+
 
     ################################################################################################
     # api_key = None
@@ -124,14 +185,44 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     ##pprint.pprint(getattr(ccxt.pro,exchange)().describe()['urls'])
     ##return result
 
-    ##endpoint = 'order_book'
-    ##endpoint = 'kline'
-    ##endpoint = 'trades'
+    streams = [
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': symbol_in
+                    },
+                    {
+                        'endpoint': 'kline',
+                        'symbol': symbol_in,
+                        'interval': interval
+                    },
+                    {
+                        'endpoint': 'trades',
+                        'symbol': symbol_in
+                    },
+                    {
+                        'endpoint': 'ticker',
+                        'symbol': symbol_in
+                    }
+            ]
+
+    # streams = None
+    # if endpoint == 'kline':
+    #     streams = [
+    #                     {
+    #                         'endpoint': str(endpoint),
+    #                         'symbol': symbol_in,
+    #                         'interval': interval
+    #                     }
+    #             ]
+    # else:
+    #     streams = [
+    #                     {
+    #                         'endpoint': str(endpoint),
+    #                         'symbol': symbol_in
+    #                     }
+    #             ]
 
     wsm0 = None
-
-    api_key = None
-    api_secret = None
 
     time_max = 5
     time_sleep = 1
@@ -149,46 +240,72 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     proc_only_arguments = True
 
     #############################
+    # aux_class = BinanceCcxwAuxClass(streams, debug=True)
+    # return result
+    #############################
+
+    #############################
     if proc_only_arguments: # pylint: disable=too-many-nested-blocks
         try:
-            wsm0 = ccxw.Ccxw(exchange_out, endpoint_out, symbol_in, testmode,\
-                            api_key=api_key, api_secret=api_secret, interval=interval,\
-                            result_max_len=result_max_len, update_speed=update_speed,\
+            pprint.pprint(streams)
+            wsm0 = Ccxw(exchange_out, streams, testmode=testmode,\
+                            result_max_len=result_max_len,\
                             data_max_len=data_max_len, debug=debug)
+
         except Exception as exc: # pylint: disable=broad-except
-            print(str(exc))
+            print('EXCEPTION: ' + str(exc))
             wsm0 = None
 
         if wsm0 is not None:
+            # print('ACA: 0')
+            # wsm0.start()
+            # print('ACA: 1')
+            # time.sleep(9)
+            # print('ACA: 2')
+            # wsm0.stop()
+            # print('ACA: 3')
+            # time.sleep(2.5)
+            # print('ACA: 4')
+            # time.sleep(2.5)
+
             wsm0.start()
             time.sleep(5)
 
             for i in range(0,int(round(time_max / time_sleep))):
+                for stream in streams:
+                    __interval = 'none'
+                    if 'interval' in stream:
+                        __interval = stream['interval']
 
-                data0 = wsm0.get_current_data()
-                ##data0 = None
+                    # print('D: ' + str(stream['endpoint'])\
+                    #       + ', ' + str(stream['symbol'])\
+                    #       + ', ' + str(__interval))
+                    data0 = wsm0.get_current_data(stream['endpoint'], stream['symbol'], __interval)
+                    # data0 = None
 
-                if data0 is not None:
-                    pprint.pprint(data0, sort_dicts=False)
-                    print('')
-                    print(str(i) + '    ' +\
-                        '========================================================================')
+                    if data0 is not None:
+                        pprint.pprint(data0, sort_dicts=False)
+                        print('')
+                        print(str(i) + '    ' +\
+                            '====================================================================')
+                    time.sleep(1)
 
                 time.sleep(time_sleep)
 
             time.sleep(5)
             wsm0.stop()
+            # print('ACA: 5')
+            # print('=========================================================================')
 
     else:
         min_get_time = None
         max_get_time = None
 
-        for endpoint_out in ccxw.Ccxw.get_supported_endpoints():
-            for exchange_out in ccxw.Ccxw.get_supported_exchanges():
+        for endpoint_out in Ccxw.get_supported_endpoints():
+            for exchange_out in Ccxw.get_supported_exchanges():
                 try:
-                    wsm0 = ccxw.Ccxw(exchange_out, endpoint_out, symbol_in, testmode,\
-                                    api_key=api_key, api_secret=api_secret, interval=interval,\
-                                    result_max_len=result_max_len, update_speed=update_speed,\
+                    wsm0 = Ccxw(exchange_out, streams, testmode,\
+                                    result_max_len=result_max_len,\
                                     data_max_len=data_max_len,debug=debug)
                 except Exception as exc: # pylint: disable=broad-except
                     print(str(exc))
@@ -199,25 +316,33 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     time.sleep(5)
 
                     for i in range(0,int(round(time_max / time_sleep))):
+                        for stream in streams:
+                            __interval = 'none'
+                            if 'interval' in stream:
+                                __interval = stream['interval']
 
-                        time_ini = time.time_ns()
-                        data0 = wsm0.get_current_data()
-                        time_end = time.time_ns()
-                        time_diff = time_end - time_ini
+                            time_ini = time.time_ns()
+                            data0 = wsm0.get_current_data(stream['endpoint'],\
+                                                          stream['symbol'],\
+                                                          __interval)
+                            time_end = time.time_ns()
+                            time_diff = time_end - time_ini
 
-                        if min_get_time is None or time_diff < min_get_time:
-                            min_get_time = time_diff
+                            if min_get_time is None or time_diff < min_get_time:
+                                min_get_time = time_diff
 
-                        if max_get_time is None or time_diff > max_get_time:
-                            max_get_time = time_diff
+                            if max_get_time is None or time_diff > max_get_time:
+                                max_get_time = time_diff
 
                         ##data0 = None
 
-                        if data0 is not None:
-                            pprint.pprint(data0, sort_dicts=False)
-                            print('')
-                            print(str(i) + '    ' +\
-                                '----------------------------------------------------------------')
+                            if data0 is not None:
+                                pprint.pprint(data0, sort_dicts=False)
+                                print('')
+                                print(str(i) + '    ' +\
+                                    '------------------------------------------------------------')
+
+                            time.sleep(1)
 
                         time.sleep(time_sleep)
 

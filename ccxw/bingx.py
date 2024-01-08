@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Ccxw - CryptoCurrency eXchange Websocket Library
 Bingx auxiliary functions
@@ -15,68 +16,78 @@ import io
 import math
 import random
 import threading
+import websocket
 import websocket_server
 
 import ccxw.ccxw_common_functions as ccf
+from ccxw.safe_thread_vars import DictSafeThread
+import ccxw
 
-class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class BingxCcxwAuxClass():
     """
     Ccxw - CryptoCurrency eXchange Websocket Library BingxCcxwAuxClass
     ==================================================================
         This class contains helper functions for the Ccxw class.
     """
 
-    # pylint: disable=too-many-arguments
-    def __init__(self, endpoint: str=None, symbol: str=None, trading_type: str='SPOT',\
-                 testmode: bool=False, api_key: str=None, api_secret: str=None,\
-                 result_max_len: int=5, update_speed: str='100ms', interval: str='1m',
-                 data_max_len: int=1000, debug: bool=False):
+    def __init__(self,\
+                 streams: list[dict],\
+                 trading_type: str='SPOT',\
+                 testmode: bool=False,\
+                 result_max_len: int=5,
+                 data_max_len: int=1000,\
+                 debug: bool=False):
         """
         BingxCcxwAuxClass constructor
         =============================
-            Initializes the BingxCcxwAuxClass with the provided parameters.
+            :param self: BingxCcxwAuxClass instance.
+            :param streams: list[dict]
+                                    dicts must have this struct.
+                                        {
+                                            'endpoint': str only allowed 'order_book' | 'kline' |\
+                                                'trades' | 'ticker',
+                                            'symbol': str unified symbol.,
+                                            'interval': str '1m' for 'kline' endpoint is\
+                                                    mandatory.
+                                        }
 
-                :param self: BingxCcxwAuxClass instance.
-                :param endpoint: str.
-                :param symbol: str unified symbol.
-                :param trading_type: str only allowed 'SPOT'.
-                :param testmode: bool.
-                :param api_key: str Not necesary only for future features.
-                :param api_secret: str Not necesary only for future features.
-                :param result_max_len: int Max return values > 1 and <= trades_max_len.
-                :param update_speed: str only allowed '100ms' | '1000ms' Only for some endpoints.
-                :param interval: str only allowed '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' 
-                    | '4H' | '6H' | '8H' | '12H' | '1D' | '3D' | '1W' | '1M'.
-                :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
-                :param debug: bool Verbose output.
+            :param trading_type: str only allowed 'SPOT'.
+            :param testmode: bool.
+            :param result_max_len: int Max return values > 1 and <= data_max_len.
+            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class BingxCcxwAuxClass.
+            :return: Return a new instance of the Class BingxCcxwAuxClass.
         """
 
+        __exchange_limit_streams = 1024
 
         self.__exchange = os.path.basename(__file__)[:-3]
-        self.__ws_endpoint = endpoint
+        self.__ws_streams = streams
         self.__ws_server = None
         self.__ws_server_url = '127.0.0.1'
-        self.__ws_server_port_base_ticker = 10000
-        self.__ws_server_port_base_trades = 30000
-        self.__stop_launcher = False
-        self.__thread = None
+        self.__ws_server_port_min = 10000
+        self.__ws_server_port_max = 50000
 
-        self.__ws_server_port = 10000
+        self.__ws_ping_interval = 0
+        self.__ws_ping_timeout = None
 
-        ##self.__api_base_url = 'https://open-api.bingx.com'
+        self.__ws_server = None
+        self.__ws_server_url = '127.0.0.1'
+        self.__ws_server_port_min = 10000
+        self.__ws_server_port_max = 50000
 
-        self.__api_key = api_key # pylint: disable=unused-private-member
-        self.__api_secret = api_secret # pylint: disable=unused-private-member
+        self.__ws_server_port = self.__ws_server_port_min
+
+        self.__local_ws_url = 'ws://' + self.__ws_server_url + ':' + str(self.__ws_server_port)
+
         self.__testmode = testmode
 
         self.__exchange_info_cache = {}
         self.__exchange_info_cache['data'] = None
         self.__exchange_info_cache['last_get_time'] = 0
 
-        self.__debug = debug # pylint: disable=unused-private-member
-        self.__ws_symbol = symbol
+        self.__debug = debug
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
@@ -84,81 +95,343 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
-        self.__update_speed = update_speed
-        self.__interval = interval
 
         self.__result_max_len = min(self.__result_max_len, 500)
         self.__result_max_len = max(self.__result_max_len, 1)
 
-        self.__exchange_hostname = None # pylint: disable=unused-private-member
         self.__ws_url_api = None
         self.__ws_url_test = None
-        self.__ws_url = None # pylint: disable=unused-private-member
+        self.__ws_url = None
         self.__url_api = None
         self.__url_test = None
         self.__ws_endpoint_url = None
         self.__ws_endpoint_on_open_vars = None
         self.__ws_endpoint_on_close_vars = None
-        self.__listen_key = None # pylint: disable=unused-private-member
-        self.__ws_temp_data = None
 
-        if self.__ws_endpoint == 'trades':
-            self.__set_ws_server_data_trades()
+        self.__ws_client = None
+        self.__ws_endpoint_url_client = None
+        self.__ws_endpoint_on_open_vars_client = None
+        self.__ws_endpoint_on_close_vars_client = None
 
-        elif self.__ws_endpoint == 'ticker':
-            self.__set_ws_server_data_ticker()
+        self.__api_data_vars = None
 
-    def __set_ws_server_data_trades(self):
+        self.__ws_temp_data = DictSafeThread()
+        self.__lock = threading.Lock()
+
+        self.__thread_websocket_client = None
+        self.__thread_api_client = None
+
+        websocket.enableTrace(self.__debug)
+
+        self.__is_stopped = False
+
+        if not self.__check_streams_struct(streams):
+            raise ValueError('The streams struct is not valid' + str(streams))
+
+        if len(streams) > __exchange_limit_streams:
+            raise ValueError('The exchange ' + str(self.__exchange)\
+                             + ' not alowed more than ' + str(__exchange_limit_streams)\
+                             + ' of streams.')
+
+    def __check_streams_struct(self, streams):
+        """
+        __check_streams_struct
+        ======================
+            This function check streams struct
+                :param self: This class instance.
+                :param streams: list[dict]
+                                dicts must have this struct.
+                                    {
+                                        'endpoint': str only allowed 'order_book' | 'kline' |\
+                                            'trades' | 'ticker',
+                                        'symbol': str unified symbol.,
+                                        'interval': str '1m' for 'kline' endpoint is\
+                                            mandatory.
+                                    }
+
+                :return bool: True if streams struct is correct otherwise False
+        """
         result = False
-        symbol = self.__ws_symbol
 
-        self.__ws_server_url = '127.' + str(random.randint(0, 127)) + '.'\
-            + str(random.randint(0, 254)) + '.' + str(random.randint(1, 254))
+        if streams is not None and isinstance(streams, list) and len(streams) > 0:
+            result = True
+            for stream in streams:
+                result = result and stream is not None\
+                    and isinstance(stream, dict)\
+                    and 'endpoint' in stream\
+                    and stream['endpoint'] is not None\
+                    and isinstance(stream['endpoint'], str)\
+                    and stream['endpoint'] in ccxw.Ccxw.get_supported_endpoints()\
+                    and 'symbol' in stream\
+                    and stream['symbol'] is not None\
+                    and isinstance(stream['symbol'], str)\
+                    and self.if_symbol_supported(stream['symbol'])
 
-        symbols_list = self.get_exchange_full_list_symbols(True)
-        if symbol in symbols_list:
-            self.__ws_server_port = self.__ws_server_port_base_trades\
-                + int(symbols_list.index(symbol))
-        else:
-            self.__ws_server_port = self.__ws_server_port_base_trades + 1
+                if result and stream['endpoint'] == 'kline':
+                    result = 'interval' in stream\
+                        and stream['interval'] is not None\
+                        and isinstance(stream['interval'], str)\
+                        and stream['interval'] in\
+                            ['1m']
 
         return result
 
-
-    def __set_ws_server_data_ticker(self):
+    def __set_ws_server(self):
         result = False
-        symbol = self.__ws_symbol
 
-        self.__ws_server_url = '127.' + str(random.randint(128, 254)) + '.'\
-            + str(random.randint(0, 254)) + '.' + str(random.randint(1, 254))
+        __host = '127.' + str(random.randint(0, 254)) + '.' + str(random.randint(0, 254))\
+            + '.' + str(random.randint(1, 254))
+        __port = random.randint(self.__ws_server_port_min, self.__ws_server_port_max)
 
-        symbols_list = self.get_exchange_full_list_symbols(True)
-        if symbol in symbols_list:
-            self.__ws_server_port = self.__ws_server_port_base_ticker\
-                + int(symbols_list.index(symbol))
-        else:
-            self.__ws_server_port = self.__ws_server_port_base_ticker + 1
+        while not ccf.is_port_free(__port, __host):
+            __host = '127.' + str(random.randint(0, 254)) + '.' + str(random.randint(0, 254))\
+                + '.' + str(random.randint(1, 254))
+            __port = random.randint(self.__ws_server_port_min, self.__ws_server_port_max)
+
+        self.__ws_server_url = __host
+        self.__ws_server_port = __port
+
+        result = True
+
+        return result
+
+    def __start_ws_server(self):
+        result = False
+        __attemps = 0
+        __attemps_limit = 900
+
+        while not ccf.is_port_free(self.__ws_server_port, self.__ws_server_url)\
+            and __attemps <= __attemps_limit:
+            __attemps = __attemps + 1
+            time.sleep(1)
+
+        if ccf.is_port_free(self.__ws_server_port, self.__ws_server_url):
+            with self.__lock:
+                self.__ws_server = websocket_server.WebsocketServer(host=self.__ws_server_url,\
+                                                                    port=self.__ws_server_port)
+
+                self.__ws_server.run_forever(threaded=True)
+                result = True
 
         return result
 
     def __del__(self):
-        self.__stop_launcher = True
-        if self.__thread is not None and threading.current_thread() is not self.__thread\
-            and self.__thread.is_alive():
+        with self.__lock:
+            self.__is_stopped = True
+
+        if self.__thread_websocket_client is not None\
+            and threading.current_thread() is not self.__thread_websocket_client\
+            and self.__thread_websocket_client.is_alive():
             try:
-                self.__thread.join(9)
+                self.__thread_websocket_client.join(9)
             except Exception: # pylint: disable=broad-except
                 pass
 
+        if self.__thread_api_client is not None\
+            and threading.current_thread() is not self.__thread_api_client\
+            and self.__thread_api_client.is_alive():
+            try:
+                self.__thread_api_client.join(9)
+            except Exception: # pylint: disable=broad-except
+                pass
+
+    def start(self):
+        """
+        start
+        =====
+
+            :param self: OkxAuxClass instance.
+        """
+        with self.__lock:
+            self.__is_stopped = False
+        self.__start_ws_server()
+        time.sleep(1)
+        self.__start_ws_client()
+        time.sleep(1)
+        self.__start_get_data_from_api()
+
     def stop(self):
         """
-        Stopping websocket server 
-        =========================
+        stop
+        ====
 
-            :param self: BingxAuxClass instance.
+            :param self: OkxAuxClass instance.
         """
+        with self.__lock:
+            self.__is_stopped = True
+        self.__stop_ws_client()
+        time.sleep(1)
+        self.__stop_get_data_from_api()
 
-        self.__stop_launcher = True
+        time.sleep(2)
+
+        if self.__ws_server is not None:
+            self.__ws_server.deny_new_connections()
+            self.__ws_server.disconnect_clients_gracefully()
+            time.sleep(1)
+            self.__ws_server.shutdown_gracefully()
+            self.__ws_server.disconnect_clients_gracefully()
+            time.sleep(1)
+            self.__ws_server.disconnect_clients_abruptly()
+            #self.__ws_server.shutdown_abruptly()
+            #self.__ws_server = None
+
+    def __manage_websocket_open(self, ws):
+        result = False
+
+        if hasattr(ws, 'on_open_vars')\
+            and ws.on_open_vars is not None\
+            and isinstance(ws.on_open_vars, dict)\
+            and all(key in ws.on_open_vars for key in ['id', 'reqType', 'dataType']):
+            try:
+                if ws.on_open_vars['id'] is not None and isinstance(ws.on_open_vars['id'], str)\
+                    and ws.on_open_vars['reqType'] is not None\
+                    and isinstance(ws.on_open_vars['reqType'], str)\
+                    and ws.on_open_vars['dataType'] is not None:
+
+                    if isinstance(ws.on_open_vars['dataType'], str):
+                        __local_open_vars = None
+                        __local_open_vars = json.dumps(ws.on_open_vars)
+                        ws.send(__local_open_vars)
+                        result = True
+                    elif isinstance(ws.on_open_vars['dataType'], list):
+                        for __local_data_type in ws.on_open_vars['dataType']:
+                            __local_open_vars = None
+                            __local_open_vars = {}
+                            __local_open_vars['id'] = ws.on_open_vars['id']
+                            __local_open_vars['reqType'] = ws.on_open_vars['reqType']
+                            __local_open_vars['dataType'] = __local_data_type
+                            __local_open_vars = json.dumps(__local_open_vars)
+
+                            ws.send(__local_open_vars)
+                            time.sleep(0.14)
+
+                        result = True
+            except Exception: # pylint: disable=broad-except
+                result = False
+
+        return result
+
+
+    def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
+        result = False
+
+        if hasattr(ws, 'on_close_vars')\
+            and ws.on_close_vars is not None\
+            and isinstance(ws.on_close_vars, dict)\
+            and all(key in ws.on_close_vars for key in ['id', 'reqType', 'dataType']):
+            try:
+
+                if ws.on_close_vars['id'] is not None and isinstance(ws.on_close_vars['id'], str)\
+                    and ws.on_close_vars['reqType'] is not None\
+                    and isinstance(ws.on_close_vars['reqType'], str)\
+                    and ws.on_close_vars['dataType'] is not None:
+
+                    if isinstance(ws.on_close_vars['dataType'], str):
+                        __local_close_vars = None
+                        __local_close_vars = json.dumps(ws.on_close_vars)
+                        ws.send(__local_close_vars)
+                        result = True
+                    elif isinstance(ws.on_close_vars['dataType'], list):
+                        for __local_data_type in ws.on_close_vars['dataType']:
+                            __local_close_vars = None
+                            __local_close_vars = {}
+                            __local_close_vars['id'] = ws.on_close_vars['id']
+                            __local_close_vars['reqType'] = ws.on_close_vars['reqType']
+                            __local_close_vars['dataType'] = __local_data_type
+                            __local_close_vars = json.dumps(__local_close_vars)
+                            ws.send(__local_close_vars)
+                            time.sleep(0.14)
+
+                        result = True
+            except Exception: # pylint: disable=broad-except
+                result = False
+
+        return result
+
+    def __manage_websocket_message_local(self, ws, message): # pylint: disable=unused-argument
+
+        if self.__ws_server is not None:
+            if message is not None:
+                if isinstance(message,bytes):
+                    message = gzip.GzipFile(fileobj=io.BytesIO(message), mode='rb')
+                    message = message.read()
+                    message = message.decode('utf-8')
+
+                    with self.__lock:
+                        self.__ws_server.send_message_to_all(message)
+
+    def __start_ws_client(self):
+        result = True
+        with self.__lock:
+            self.__is_stopped = False
+        self.__thread_api_client = threading.Thread(target=self.__start_ws)
+        self.__thread_api_client.start()
+        return result
+
+    def __start_ws(self):
+        result = False
+        __socket = self.__ws_url + self.__ws_endpoint_url_client
+        try:
+            self.__ws_client = (
+                websocket.WebSocketApp(__socket,\
+                                       on_message=self.__manage_websocket_message_local,\
+                                       on_open=self.__manage_websocket_open,\
+                                       on_close=self.__manage_websocket_close)
+            )
+
+            self.__ws_client.on_open_vars = self.__ws_endpoint_on_open_vars_client
+            self.__ws_client.on_close_vars = self.__ws_endpoint_on_close_vars_client
+
+            result = True
+
+            __ws_temp = (
+                self.__ws_client.run_forever(ping_interval=self.__ws_ping_interval,\
+                                             ping_timeout=self.__ws_ping_timeout,\
+                                             reconnect=320)
+                )
+
+        except Exception as exc: # pylint: disable=broad-except
+            result = False
+            print('On create websocket exception: ' + str(exc))
+
+        return result
+
+    def __start_get_data_from_api(self):
+        result = True
+        with self.__lock:
+            self.__is_stopped = False
+        self.__thread_api_client = threading.Thread(target=self.__get_data_from_api)
+        self.__thread_api_client.start()
+        return result
+
+    def __stop_get_data_from_api(self):
+        with self.__lock:
+            self.__is_stopped = True
+
+        if self.__thread_api_client is not None\
+            and threading.current_thread() is not self.__thread_api_client\
+            and self.__thread_api_client.is_alive():
+
+            try:
+                self.__thread_api_client.join(9)
+            except Exception: # pylint: disable=broad-except
+                pass
+
+    def __stop_ws_client(self):
+        with self.__lock:
+            self.__is_stopped = True
+
+        self.__ws_client.close()
+
+        if self.__thread_websocket_client is not None\
+            and threading.current_thread() is not self.__thread_websocket_client\
+            and self.__thread_websocket_client.is_alive():
+
+            try:
+                self.__thread_websocket_client.join(9)
+            except Exception: # pylint: disable=broad-except
+                pass
 
     def get_websocket_url(self):
         """
@@ -171,22 +444,17 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         result = None
 
-        __local_ws_url = 'ws://' + self.__ws_server_url + ':' + str(self.__ws_server_port)
+        if self.__set_ws_server():
+            self.__local_ws_url = 'ws://' + self.__ws_server_url + ':' + str(self.__ws_server_port)
 
-        if self.__trading_type == 'SPOT':
-            if self.__ws_endpoint == 'trades':
-                self.__ws_url_api = __local_ws_url
-                self.__ws_url_test = ''
-            elif self.__ws_endpoint == 'ticker':
-                self.__ws_url_api = __local_ws_url
-                self.__ws_url_test = ''
-            else:
-                self.__ws_url_api = 'wss://open-api-ws.bingx.com/market'
-                self.__ws_url_test = ''
+            if self.__trading_type == 'SPOT':
+                self.__ws_url = 'wss://open-api-ws.bingx.com'
+                self.__ws_url_api = self.__local_ws_url
+                self.__ws_url_test = self.__ws_url
 
-        result = self.__ws_url_api
-        if self.__testmode:
-            result = self.__ws_url_test
+            result = self.__ws_url_api
+            if self.__testmode:
+                result = self.__ws_url_test
 
         return result
 
@@ -211,7 +479,7 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         return result
 
-    def get_exchange_info(self, full_list=True):
+    def get_exchange_info(self):
         """
         get_exchange_info
         =================
@@ -222,7 +490,6 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         result = None
 
-        full_list = True
         max_last_get_time = 7200
 
         current_time = int(time.time())
@@ -237,13 +504,6 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
             __l_endpoint = '/openApi/' + self.__trading_type.lower() + '/v1/common/symbols'
 
             __l_url_point = __l_url_api + __l_endpoint
-
-            if full_list:
-                __l_url_point = __l_url_api + __l_endpoint
-            else:
-                if self.__ws_symbol is not None and isinstance(self.__ws_symbol,str):
-                    __l_url_point = __l_url_point + '?symbol='\
-                        + str(self.__ws_symbol.replace('/','-').upper())
 
             __data = ccf.file_get_contents_url(__l_url_point)
 
@@ -267,7 +527,7 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         """
 
         result = None
-        __main_data = self.get_exchange_info(True)
+        __main_data = self.get_exchange_info()
 
         if __main_data is not None and isinstance(__main_data,dict)\
             and 'data' in __main_data and isinstance(__main_data['data'],dict)\
@@ -286,7 +546,79 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         return result
 
-    def if_symbol_supported(self):
+    def get_unified_symbol_from_symbol(self, symbol):
+        """
+        get_unified_symbol_from_symbol
+        ==============================
+            This function get unified symbol from symbol.
+                :param self: This class instance.
+                :param symbol: str.
+                :return str: Return unified symbol.
+        """
+        result = symbol
+
+        full_list_symbols = self.get_exchange_full_list_symbols(False)
+
+        for symbol_rpl in full_list_symbols:
+            if symbol.replace('-','').replace('/', '').lower()\
+                == symbol_rpl.replace('-','').replace('/', '').lower():
+                result = symbol_rpl
+                break
+
+        return result
+
+    def __get_interval_from_unified_interval(self, interval):
+        result = '1'
+        result = interval
+
+        if 'm' in result:
+            result = result.replace('m', 'min')
+        elif result == '1h':
+            result = '60m'
+        elif 'h' in result:
+            result = result.replace('h', 'hour')
+        elif 'd' in result:
+            result = result.replace('d', 'day')
+        elif 'w' in result:
+            result = result.replace('w', 'week')
+        elif 'mo' in result:
+            result = result.replace('mo', 'mon')
+
+        result = str(result)
+
+        return result
+
+    def get_unified_interval_from_interval(self, interval):
+        """
+        get_unified_interval_from_interval
+        ==================================
+            This function get unified interval from interval.
+                :param self: This class instance.
+                :param interval: str.
+                :return str: Return unified interval.
+        """
+
+        result = interval
+
+        if result is not None:
+            if result == '60m':
+                result = '1h'
+            elif 'min' in result:
+                result = result.replace('min', 'm')
+            elif 'hour' in result:
+                result = result.replace('hour', 'h')
+            elif 'day' in result:
+                result = result.replace('day', 'd')
+            elif 'week' in result:
+                result = result.replace('week', 'w')
+            elif 'mon' in result:
+                result = result.replace('mon', 'mo')
+
+            result = str(result)
+
+        return result
+
+    def if_symbol_supported(self, symbol):
         """
         if_symbol_supported
         ===================
@@ -299,8 +631,30 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         __data = self.get_exchange_full_list_symbols()
 
-        if isinstance(__data,list) and self.__ws_symbol in __data:
+        if isinstance(__data,list) and symbol in __data:
             result = True
+
+        return result
+
+    def get_stream_index(self, endpoint, symbol, interval: str='none'):
+        """
+        get_stream_index
+        ================
+            This function return a stream index for use in dict.
+                :param self: This class instance.
+                :param endpoint: str.
+                :param symbol: str unified symbol.
+                :param interval: str.
+                :return str: Return stream index
+        """
+        result = 'stream'
+
+        if interval is None:
+            interval = 'none'
+
+        result = result + '_' + endpoint + '_' + symbol + '_' + interval
+
+        result = result.replace('/','').replace('-', '').lower()
 
         return result
 
@@ -309,76 +663,74 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         get_websocket_endpoint_path
         ===========================
             This function set endpoint URL and on_open vars and on_close vars.
-            
+
                 :return dict: Return dict with endpoint, open_vars and close_vars
         """
 
         result = None
+
         __send_data_vars = None
 
-        if not self.__update_speed in ('100ms', '1000ms'):
-            self.__update_speed = '1000ms'
+        self.__ws_endpoint_url = ''
 
-        if self.__ws_endpoint == 'order_book':
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['reqType'] = 'sub'
-            __send_data_vars['dataType'] = self.__ws_symbol.replace("/","-").upper()\
-                + '@depth' + '100'
+        self.__ws_endpoint_url_client = '/market'
+        self.__ws_endpoint_on_open_vars_client = None
+        self.__ws_endpoint_on_close_vars_client = None
+        self.__ws_endpoint_on_open_vars_client = {}
+        self.__ws_endpoint_on_close_vars_client = {}
+        self.__ws_endpoint_on_open_vars_client['id'] = str(time.time_ns())
+        self.__ws_endpoint_on_open_vars_client['reqType'] = 'sub'
+        self.__ws_endpoint_on_open_vars_client['dataType'] = None
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+        self.__ws_endpoint_on_close_vars_client['id'] = self.__ws_endpoint_on_open_vars_client['id']
+        self.__ws_endpoint_on_close_vars_client['reqType'] = 'unsub'
+        self.__ws_endpoint_on_close_vars_client['dataType'] = None
 
-        elif self.__ws_endpoint == 'kline':
+        self.__api_data_vars = None
+        self.__api_data_vars = []
 
-            ##__out_interval = self.__interval
-            __out_interval = '1min' # Only available for 1 minute
+        __ws_args_client = None
+        __ws_args_client = []
 
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['reqType'] = 'sub'
-            __send_data_vars['dataType'] = self.__ws_symbol.replace("/","-").upper()\
-                + '@kline_' + str(__out_interval)
+        __api_args_client = None
+        __api_args_client = []
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+        for stream in self.__ws_streams:
+            interval = 'none'
 
-        elif self.__ws_endpoint == 'trades':
-            __send_data_vars = None
+            if stream['endpoint'] == 'order_book':
+                __ws_args_client.append(stream['symbol'].replace("/","-").upper()\
+                                             + '@depth' + '100')
 
-            self.__ws_endpoint_url = '/'
-            self.__ws_endpoint_on_open_vars = None
+            elif stream['endpoint'] == 'kline':
+                interval = stream['interval']
+                __ws_args_client.append(stream['symbol'].replace("/","-").upper()\
+                                             + '@kline_'\
+                                             + self.__get_interval_from_unified_interval(interval))
 
-            self.__ws_server = websocket_server.WebsocketServer(host=self.__ws_server_url,\
-                port=self.__ws_server_port)
+            elif stream['endpoint'] == 'trades':
+                __data_add = None
+                __data_add = {}
+                __data_add['endpoint'] = 'trades'
+                __data_add['symbol'] = stream['symbol'].replace("/","-").upper()
 
-            self.__ws_server.run_forever(threaded=True)
+                self.__api_data_vars.append(__data_add)
 
-            self.__stop_launcher = False
-            self.__thread = threading.Thread(target=self.__get_local_websocket_trades_data)
-            self.__thread.start()
+            elif stream['endpoint'] == 'ticker':
+                __data_add = None
+                __data_add = {}
+                __data_add['endpoint'] = 'ticker'
+                __data_add['symbol'] = stream['symbol'].replace("/","-").upper()
 
-        elif self.__ws_endpoint == 'ticker':
-            __send_data_vars = None
+                self.__api_data_vars.append(__data_add)
 
-            self.__ws_endpoint_url = '/'
-            self.__ws_endpoint_on_open_vars = None
+            __stream_index = self.get_stream_index(stream['endpoint'],\
+                                                     stream['symbol'],\
+                                                     interval=interval)
+            self.__ws_temp_data[__stream_index] = None
 
-            self.__ws_server = websocket_server.WebsocketServer(host=self.__ws_server_url,\
-                port=self.__ws_server_port)
-
-            self.__ws_server.run_forever(threaded=True)
-
-            self.__stop_launcher = False
-            self.__thread = threading.Thread(target=self.__get_local_websocket_ticker_data)
-            self.__thread.start()
-
-        if __send_data_vars is not None and isinstance(__send_data_vars,dict):
-            self.__ws_endpoint_on_close_vars = __send_data_vars
-            self.__ws_endpoint_on_close_vars['reqType'] = 'unsub'
-            self.__ws_endpoint_on_close_vars = json.dumps(self.__ws_endpoint_on_close_vars)
+        self.__ws_endpoint_on_open_vars_client['dataType'] = __ws_args_client
+        self.__ws_endpoint_on_close_vars_client['dataType'] = __ws_args_client
 
         result = {}
         result['ws_endpoint_url'] = self.__ws_endpoint_url
@@ -387,11 +739,11 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         return result
 
-    def __get_local_websocket_trades_data(self):
+    def __get_data_from_api(self):
         """
-        __get_local_websocket_trades_data
+        __get_data_from_api
         =================================
-            This function get trades data from Rest API and send data to a local websocket server
+            This function get data from Rest API and send data to a local websocket server
             Requests limit 500 per minute and 1500 per 5 minutes -> 5 per second
             In our case 2 requests per second max.
 
@@ -400,84 +752,75 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
         result = True
         __min_time = 0.5
-        __timeout = 4
+        __timeout = 9
 
-        __timestamp = str(round(time.time_ns() / 1000000))
+        __to_stop = False
 
-        __l_endpoint = '/openApi/' + str(self.__trading_type).lower() + '/v1/market/trades?symbol='\
-            + self.__ws_symbol.replace("/","-").upper() + '&limit=100'
-        __data_url = self.__url_api + __l_endpoint
+        with self.__lock:
+            __to_stop = self.__is_stopped
 
-        if self.__testmode:
-            __data_url = self.__url_test + __l_endpoint
+        while not __to_stop:
+            if self.__api_data_vars is not None\
+                and isinstance(self.__api_data_vars, list)\
+                and len(self.__api_data_vars) > 0:
+                for __api_data_var in self.__api_data_vars:
+                    __time_sleep = 0
+                    __time_ini = time.time_ns()
+                    if __api_data_var is not None and isinstance(__api_data_var, dict)\
+                        and 'endpoint' in __api_data_var and 'symbol' in __api_data_var:
+                        __data_url = None
+                        __data_type = __api_data_var['symbol'] + '@' + __api_data_var['endpoint']
 
-        while not self.__stop_launcher:
-            __time_ini = time.time_ns()
-            __message = ccf.file_get_contents_url(__data_url, 'b', None, {}, __timeout)
-            ##__message = str(__message.decode('utf-8'))
+                        if __api_data_var['endpoint'] == 'trades':
 
-            if __message is not None and ccf.is_json(__message):
-                self.__ws_server.send_message_to_all(__message)
+                            __l_endpoint = '/openApi/' + str(self.__trading_type).lower()\
+                                + '/v1/market/' + str(__api_data_var['endpoint'])\
+                                + '?symbol=' + str(__api_data_var['symbol']) + '&limit=100'
+                            __data_url = self.__url_api + __l_endpoint
 
-            __time_end = time.time_ns()
-            __time_diff = (__time_end - __time_ini) / 1000000000
-            __time_sleep = round((__min_time - __time_diff),3)
+                        elif __api_data_var['endpoint'] == 'ticker':
+                            __timestamp = str(round(time.time_ns() / 1000000))
+                            __l_endpoint = '/openApi/' + str(self.__trading_type).lower()\
+                                + '/v1/' + str(__api_data_var['endpoint']) + '/24hr?timestamp='\
+                                + __timestamp + '&symbol=' + str(__api_data_var['symbol'])
+                            __data_url = self.__url_api + __l_endpoint
 
-            if __time_sleep > 0:
-                time.sleep(__time_sleep)
+                        if __data_url is not None:
+                            __message = (
+                                ccf.file_get_contents_url(__data_url, 'b', None, {}, __timeout)
+                            )
 
-        if self.__stop_launcher:
-            self.__ws_server.shutdown_gracefully()
-            #self.__ws_server.shutdown_abruptly()
+                            if __message is not None and ccf.is_json(__message):
+                                __message = json.loads(__message)
+                                if __message is not None\
+                                    and isinstance(__message, dict)\
+                                    and 'code' in __message\
+                                    and 'data' in __message:
+                                    __message_out = None
+                                    __message_out = {}
+                                    __message_out['code'] = __message['code']
+                                    __message_out['data'] = __message['data']
+                                    __message_out['timestamp'] = __message['timestamp']
+                                    __message_out['dataType'] = __data_type
+                                    __message_out['success'] = True
+                                    __message_out = json.dumps(__message_out)
+                                    self.__ws_server.send_message_to_all(__message_out)
 
-        return result
+                    __time_end = time.time_ns()
+                    __time_diff = (__time_end - __time_ini) / 1000000000
+                    __time_sleep = round((__min_time - __time_diff),3)
 
-    def __get_local_websocket_ticker_data(self):
-        """
-        __get_local_websocket_ticker_data
-        =================================
-            This function get ticker data from Rest API and send data to a local websocket server
-            Requests limit 500 per minute and 1500 per 5 minutes -> 5 per second
-            In our case 2 requests per second max.
+                    if __time_sleep > 0:
+                        time.sleep(__time_sleep)
+            else:
+                time.sleep(1)
 
-                :return bool: True if all OK
-        """
-
-        result = True
-        __min_time = 0.5
-        __timeout = 4
-
-        __timestamp = str(round(time.time_ns() / 1000000))
-
-        __l_endpoint = '/openApi/' + str(self.__trading_type).lower()\
-            + '/v1/ticker/24hr?timestamp='\
-            + __timestamp + '&symbol=' + self.__ws_symbol.replace("/","-").upper()
-        __data_url = self.__url_api + __l_endpoint
-        if self.__testmode:
-            __data_url = self.__url_test + __l_endpoint
-
-        while not self.__stop_launcher:
-            __time_ini = time.time_ns()
-            __message = ccf.file_get_contents_url(__data_url, 'b', None, {}, __timeout)
-            ##__message = str(__message.decode('utf-8'))
-
-            if __message is not None and ccf.is_json(__message):
-                self.__ws_server.send_message_to_all(__message)
-
-            __time_end = time.time_ns()
-            __time_diff = (__time_end - __time_ini) / 1000000000
-            __time_sleep = round((__min_time - __time_diff),3)
-
-            if __time_sleep > 0:
-                time.sleep(__time_sleep)
-
-        if self.__stop_launcher:
-            self.__ws_server.shutdown_gracefully()
-            #self.__ws_server.shutdown_abruptly()
+            with self.__lock:
+                __to_stop = self.__is_stopped
 
         return result
 
-    def manage_websocket_message_order_book(self,data):
+    def manage_websocket_message_order_book(self, data, symbol):
         """
         manage_websocket_message_order_book
         ===================================
@@ -488,6 +831,9 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
                 :return dict: Return dict with normalized data.
         """
         result = None
+
+        symbol = self.get_unified_symbol_from_symbol(symbol)
+        __stream_index = self.get_stream_index('order_book', symbol)
 
         __temp_data = data
         __proc_data = False
@@ -501,9 +847,9 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
             __message_out = None
             __message_out = {}
-            __message_out['endpoint'] = self.__ws_endpoint
+            __message_out['endpoint'] = 'order_book'
             __message_out['exchange'] = self.__exchange
-            __message_out['symbol'] = self.__ws_symbol
+            __message_out['symbol'] = symbol
             __message_out['interval'] = None
             __message_out['last_update_id'] = time.time_ns()
             __message_out['diff_update_id'] = 0
@@ -517,10 +863,11 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
             __message_out['datetime'] = __current_datetime
 
             result = __message_out
+            self.__ws_temp_data[__stream_index] = __temp_data
 
         return result
 
-    def manage_websocket_message_kline(self,data):
+    def manage_websocket_message_kline(self, data, symbol, interval):
         """
         manage_websocket_message_kline
         ==============================
@@ -535,8 +882,14 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         __temp_data = data
         __proc_data = False
 
-        if self.__ws_temp_data is None or not isinstance(self.__ws_temp_data,dict):
-            self.__ws_temp_data = {}
+        symbol = self.get_unified_symbol_from_symbol(symbol)
+        interval = self.get_unified_interval_from_interval(interval)
+
+        __stream_index = self.get_stream_index('kline', symbol, interval)
+
+        if self.__ws_temp_data[__stream_index] is None\
+            or not isinstance(self.__ws_temp_data[__stream_index], dict):
+            self.__ws_temp_data[__stream_index] = {}
 
         if __temp_data is not None and isinstance(__temp_data,dict)\
             and 'code' in __temp_data and int(__temp_data['code']) == 0\
@@ -549,9 +902,9 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
 
                 __message_add = None
                 __message_add = {}
-                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['endpoint'] = 'kline'
                 __message_add['exchange'] = self.__exchange
-                __message_add['symbol'] = self.__ws_symbol
+                __message_add['symbol'] = symbol
                 __message_add['interval'] = __out_interval
                 __message_add['last_update_id'] = __temp_data['data']['E']
                 __message_add['open_time'] = int(__temp_data['data']['K']['t'])
@@ -571,19 +924,19 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
                 __message_add['volume'] = __temp_data['data']['K']['v']
                 __message_add['is_closed'] = None
 
-                self.__ws_temp_data[int(__message_add['open_time'])] = __message_add
+                self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = __message_add
 
-                while len(self.__ws_temp_data) > self.__data_max_len:
-                    __first_key = min(list(self.__ws_temp_data.keys()))
-                    __nc = self.__ws_temp_data.pop(__first_key,None)
+                while len(self.__ws_temp_data[__stream_index]) > self.__data_max_len:
+                    __first_key = min(list(self.__ws_temp_data[__stream_index].keys()))
+                    __nc = self.__ws_temp_data[__stream_index].pop(__first_key,None)
 
-                __message_out = list(self.__ws_temp_data.values())
+                __message_out = list(self.__ws_temp_data[__stream_index].values())
 
-                result = __message_out
+                result = __message_out[:self.__result_max_len]
 
         return result
 
-    def manage_websocket_message_trades(self,data):
+    def manage_websocket_message_trades(self, data, symbol):
         """
         manage_websocket_message_trades
         ===============================
@@ -598,21 +951,24 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         __temp_data = data
         __proc_data = False
 
-        if __temp_data is not None and isinstance(__temp_data,dict)\
+        symbol = self.get_unified_symbol_from_symbol(symbol)
+        __stream_index = self.get_stream_index('trades', symbol)
+
+        if __temp_data is not None and isinstance(__temp_data, dict)\
             and 'code' in __temp_data and  int(__temp_data['code']) == 0:
             if 'timestamp' in __temp_data and 'data' in __temp_data\
                 and isinstance(__temp_data['data'],list)\
                 and len(__temp_data['data']) > 0:
 
-                if self.__ws_temp_data is None:
-                    self.__ws_temp_data = {}
+                if self.__ws_temp_data[__stream_index] is None:
+                    self.__ws_temp_data[__stream_index] = {}
 
                 for i in range(len(__temp_data['data']) - 1,-1,-1):
                     __message_add = None
                     __message_add = {}
-                    __message_add['endpoint'] = self.__ws_endpoint
+                    __message_add['endpoint'] = 'trades'
                     __message_add['exchange'] = self.__exchange
-                    __message_add['symbol'] = self.__ws_symbol
+                    __message_add['symbol'] = symbol
                     __message_add['interval'] = None
                     __message_add['event_time'] = __temp_data['timestamp']
                     __message_add['trade_id'] = str(__temp_data['data'][i]['id'])
@@ -632,20 +988,23 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
                         __side_of_taker = 'SELL'
                     __message_add['side_of_taker'] = __side_of_taker
 
-                    self.__ws_temp_data[int(__message_add['trade_id'])] = __message_add
+                    self.__ws_temp_data[__stream_index][int(__message_add['trade_id'])] = (
+                        __message_add
+                    )
 
-                    while len(self.__ws_temp_data) > self.__data_max_len:
-                        __first_key = min(list(self.__ws_temp_data.keys()))
-                        __nc = self.__ws_temp_data.pop(__first_key,None)
+                    while len(self.__ws_temp_data[__stream_index]) > self.__data_max_len:
+                        __first_key = min(list(self.__ws_temp_data[__stream_index].keys()))
+                        __nc = self.__ws_temp_data[__stream_index].pop(__first_key,None)
 
-                    __message_out = list(self.__ws_temp_data.values())
-                    __message_out.reverse()
+                    __message_out = list(self.__ws_temp_data[__stream_index].values())
+                    #__message_out.reverse()
+                    __message_out = __message_out[:self.__result_max_len]
 
                     result = __message_out
 
         return result
 
-    def manage_websocket_message_ticker(self,data):
+    def manage_websocket_message_ticker(self, data, symbol):
         """
         manage_websocket_message_ticker
         ===============================
@@ -660,20 +1019,23 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         __temp_data = data
         __proc_data = False
 
+        symbol = self.get_unified_symbol_from_symbol(symbol)
+        __stream_index = self.get_stream_index('ticker', symbol)
+
         if __temp_data is not None and isinstance(__temp_data,dict)\
             and 'code' in __temp_data and  int(__temp_data['code']) == 0:
             if 'timestamp' in __temp_data and 'data' in __temp_data\
                 and isinstance(__temp_data['data'],list)\
                 and len(__temp_data['data']) > 0:
-                self.__ws_temp_data = __temp_data
+                self.__ws_temp_data[__stream_index] = __temp_data
 
                 i = 0
                 __message_add = None
                 __message_add = {}
-                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['endpoint'] = 'ticker'
                 __message_add['exchange'] = self.__exchange
-                __message_add['symbol'] = self.__ws_symbol
-                __message_add['interval'] = self.__interval
+                __message_add['symbol'] = symbol
+                __message_add['interval'] = None
                 __message_add['event_type'] = '24hrTicker'
                 __message_add['event_time'] = __temp_data['timestamp']
                 __message_add['event_time_date'] = (
@@ -731,7 +1093,7 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
         return result
 
 
-    def manage_websocket_message(self,ws,message_in):
+    def manage_websocket_message(self, ws, message_in):
         """
         manage_websocket_message
         ========================
@@ -751,54 +1113,97 @@ class BingxCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupli
                 message_in = message_in.read()
                 message_in = message_in.decode('utf-8')
 
-
             if message_in == 'Ping':
                 ws.send('Pong')
                 result = message_in
             else:
                 if ccf.is_json(message_in):
                     __temp_data = json.loads(message_in)
+                    __endpoint = 'NONE'
+                    __symbol = None
+                    __interval = None
+                    __message_out = None
 
-                    if self.__ws_endpoint == 'order_book':
-                        self.__ws_temp_data = __temp_data
-                        __message_out = self.manage_websocket_message_order_book(__temp_data)
+                    if __temp_data is not None\
+                        and isinstance(__temp_data, dict)\
+                        and 'code' in __temp_data\
+                        and 'data' in __temp_data\
+                        and 'dataType' in __temp_data\
+                        and 'success' in __temp_data\
+                        and __temp_data['success']:
 
-                        if __message_out is not None:
-                            self.__ws_temp_data = __temp_data
+                        __tmp_endpoint = 'NONE'
 
-                            result = {}
-                            result['data'] = __message_out
-                            result['min_proc_time_ms'] = 0
-                            result['max_proc_time_ms'] = 0
+                        if '@' in __temp_data['dataType']:
+                            __input_tmp = __temp_data['dataType'].split('@')
+                            if __input_tmp is not None\
+                                and isinstance(__input_tmp, list)\
+                                and len(__input_tmp) >=2:
+                                __symbol = __input_tmp[0]
+                                __tmp_endpoint = __input_tmp[1]
 
-                    elif self.__ws_endpoint == 'kline':
-                        __message_out = self.manage_websocket_message_kline(__temp_data)
+                        if __tmp_endpoint.startswith('depth'):
+                            __endpoint = 'order_book'
+                        elif __tmp_endpoint.startswith('kline') and '_' in __tmp_endpoint:
+                            __tmp_interval = __tmp_endpoint.split('_')
+                            if __tmp_interval is not None\
+                                and isinstance(__tmp_interval, list)\
+                                and len(__tmp_interval) >=2:
+                                __endpoint = 'kline'
+                                __interval = __tmp_interval[1]
+                        elif __tmp_endpoint.startswith('trades'):
+                            __endpoint = 'trades'
+                        elif __tmp_endpoint.startswith('ticker'):
+                            __endpoint = 'ticker'
 
-                        if __message_out is not None:
-                            result = {}
-                            result['data'] = __message_out
-                            result['min_proc_time_ms'] = 0
-                            result['max_proc_time_ms'] = 0
+                        if __endpoint == 'order_book':
+                            __message_out = (
+                                self.manage_websocket_message_order_book(__temp_data, __symbol)
+                            )
 
-                    elif self.__ws_endpoint == 'trades':
-                        __message_out = self.manage_websocket_message_trades(__temp_data)
+                            if __message_out is not None:
 
-                        if __message_out is not None:
-                            result = {}
-                            result['data'] = __message_out
-                            result['min_proc_time_ms'] = 0
-                            result['max_proc_time_ms'] = 0
+                                result = {}
+                                result['data'] = __message_out
+                                result['min_proc_time_ms'] = 0
+                                result['max_proc_time_ms'] = 0
 
-                    elif self.__ws_endpoint == 'ticker':
-                        __message_out = self.manage_websocket_message_ticker(__temp_data)
+                        elif __endpoint == 'kline':
+                            __message_out = (
+                                self.manage_websocket_message_kline(__temp_data,\
+                                                                    __symbol,\
+                                                                    __interval)
+                            )
 
-                        if __message_out is not None:
-                            result = {}
-                            result['data'] = __message_out
-                            result['min_proc_time_ms'] = 0
-                            result['max_proc_time_ms'] = 0
+                            if __message_out is not None:
+                                result = {}
+                                result['data'] = __message_out
+                                result['min_proc_time_ms'] = 0
+                                result['max_proc_time_ms'] = 0
+
+                        elif __endpoint == 'trades':
+                            __message_out = (
+                                self.manage_websocket_message_trades(__temp_data, __symbol)
+                            )
+
+                            if __message_out is not None:
+                                result = {}
+                                result['data'] = __message_out
+                                result['min_proc_time_ms'] = 0
+                                result['max_proc_time_ms'] = 0
+
+                        elif __endpoint == 'ticker':
+                            __message_out = (
+                                self.manage_websocket_message_ticker(__temp_data, __symbol)
+                            )
+
+                            if __message_out is not None:
+                                result = {}
+                                result['data'] = __message_out
+                                result['min_proc_time_ms'] = 0
+                                result['max_proc_time_ms'] = 0
 
         except Exception as exc: # pylint: disable=broad-except
-            print(str(exc))
+            print('EXCEPTION: ' + str(exc))
 
         return result

@@ -12,46 +12,55 @@ import time
 import datetime
 import queue
 import math
+import copy
 
 import ccxw.ccxw_common_functions as ccf
+from ccxw.safe_thread_vars import DictSafeThread
+import ccxw
 
-class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, duplicate-code
+class KucoinCcxwAuxClass():
     """
     Ccxw - CryptoCurrency eXchange Websocket Library KucoinCcxwAuxClass
     ===================================================================
         This class contains helper functions for the Ccxw class.
     """
-    # pylint: disable=too-many-arguments
-    def __init__(self, endpoint: str=None, symbol: str=None, trading_type: str='SPOT',\
-                 testmode: bool=False, api_key: str=None, api_secret: str=None,\
-                 result_max_len: int=5, update_speed: str='100ms', interval: str='1m',\
-                 data_max_len: int=1000, debug: bool=False):
+
+    def __init__(self,\
+                 streams: list[dict],\
+                 trading_type: str='SPOT',\
+                 testmode: bool=False,\
+                 result_max_len: int=5,\
+                 data_max_len: int=1000,\
+                 debug: bool=False):
         """
         KucoinCcxwAuxClass constructor
         ==============================
-            Initializes the KucoinCcxwAuxClass with the provided parameters.
+            :param self: KucoinCcxwAuxClass instance.
+            :param streams: list[dict]
+                                    dicts must have this struct.
+                                        {
+                                            'endpoint': str only allowed 'order_book' | 'kline' |\
+                                                'trades' | 'ticker',
+                                            'symbol': str unified symbol.,
+                                            'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                                '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' |\
+                                                '3d' | '1w' | '1mo' for 'kline' endpoint is\
+                                                    mandatory.
+                                        }
 
-                :param self: KucoinCcxwAuxClass instance.
-                :param endpoint: str.
-                :param symbol: str unified symbol.
-                :param trading_type: str only allowed 'SPOT'.
-                :param testmode: bool.
-                :param api_key: str Not necesary only for future features.
-                :param api_secret: str Not necesary only for future features.
-                :param result_max_len: int Max return values > 1 and <= trades_max_len.
-                :param update_speed: str only allowed '100ms' | '1000ms' Only for some endpoints.
-                :param interval: str only allowed '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' 
-                    | '4H' | '6H' | '8H' | '12H' | '1D' | '3D' | '1W' | '1M'.
-                :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
-                :param debug: bool Verbose output.
+            :param trading_type: str only allowed 'SPOT'.
+            :param testmode: bool.
+            :param result_max_len: int Max return values > 1 and <= data_max_len.
+            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param debug: bool Verbose output.
 
-                :return: Return a new instance of the Class KucoinCcxwAuxClass.
+            :return: Return a new instance of the Class KucoinCcxwAuxClass.
         """
 
+        __exchange_limit_streams = 100
+
         self.__exchange = os.path.basename(__file__)[:-3]
-        self.__ws_endpoint = endpoint
-        self.__api_key = api_key # pylint: disable=unused-private-member
-        self.__api_secret = api_secret # pylint: disable=unused-private-member
+        self.__ws_streams = streams
         self.__testmode = testmode
 
         self.__exchange_info_cache = {}
@@ -59,7 +68,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         self.__exchange_info_cache['last_get_time'] = 0
 
         self.__debug = debug # pylint: disable=unused-private-member
-        self.__ws_symbol = symbol
+
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
@@ -67,13 +76,10 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
-        self.__update_speed = update_speed
-        self.__interval = interval
 
         self.__result_max_len = min(self.__result_max_len, 500)
         self.__result_max_len = max(self.__result_max_len, 1)
 
-        self.__exchange_hostname = None # pylint: disable=unused-private-member
         self.__ws_url_api = None
         self.__ws_url_test = None
         self.__ws_url = None # pylint: disable=unused-private-member
@@ -82,14 +88,67 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         self.__ws_endpoint_url = None
         self.__ws_endpoint_on_open_vars = None
         self.__ws_endpoint_on_close_vars = None
-        self.__listen_key = None # pylint: disable=unused-private-member
-        self.__ws_temp_data = None
+        self.__ws_temp_data = DictSafeThread()
 
         self.ping_interval_ms = 10.0
         self.ping_timeout_ms = 10.0
 
+        if not self.__check_streams_struct(streams):
+            raise ValueError('The streams struct is not valid' + str(streams))
+
+        if len(streams) > __exchange_limit_streams:
+            raise ValueError('The exchange ' + str(self.__exchange)\
+                             + ' not alowed more than ' + str(__exchange_limit_streams)\
+                             + ' of streams.')
+
     def __del__(self):
         pass
+
+    def __check_streams_struct(self, streams):
+        """
+        __check_streams_struct
+        ======================
+            This function check streams struct
+                :param self: This class instance.
+                :param streams: list[dict]
+                                dicts must have this struct.
+                                    {
+                                        'endpoint': str only allowed 'order_book' | 'kline' |\
+                                            'trades' | 'ticker',
+                                        'symbol': str unified symbol.,
+                                        'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                            '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' |\
+                                            '3d' | '1w' | '1mo' only for 'kline' endpoint is\
+                                                mandatory.
+                                    }
+
+                :return bool: True if streams struct is correct otherwise False
+        """
+        result = False
+
+        if streams is not None and isinstance(streams, list) and len(streams) > 0:
+            result = True
+            for stream in streams:
+                result = result and stream is not None\
+                    and isinstance(stream, dict)\
+                    and 'endpoint' in stream\
+                    and stream['endpoint'] is not None\
+                    and isinstance(stream['endpoint'], str)\
+                    and stream['endpoint'] in ccxw.Ccxw.get_supported_endpoints()\
+                    and 'symbol' in stream\
+                    and stream['symbol'] is not None\
+                    and isinstance(stream['symbol'], str)\
+                    and self.if_symbol_supported(stream['symbol'])
+
+                if result and stream['endpoint'] == 'kline':
+                    result = 'interval' in stream\
+                        and stream['interval'] is not None\
+                        and isinstance(stream['interval'], str)\
+                        and stream['interval'] in\
+                            ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h',\
+                             '6h', '8h', '12h', '1d', '1w']
+
+        return result
 
     def get_websocket_url(self):
         """
@@ -175,7 +234,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         return result
 
-    def get_exchange_info(self, full_list=False): # pylint: disable=unused-argument
+    def get_exchange_info(self):
         """
         get_exchange_info
         =================
@@ -186,7 +245,6 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         result = None
 
-        full_list = True
         max_last_get_time = 7200
 
         current_time = int(time.time())
@@ -224,7 +282,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         """
 
         result = None
-        __main_data = self.get_exchange_info(True)
+        __main_data = self.get_exchange_info()
 
         if __main_data is not None and isinstance(__main_data,dict)\
             and 'data' in __main_data and isinstance(__main_data['data'],list):
@@ -244,7 +302,71 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         return result
 
-    def if_symbol_supported(self):
+    def get_unified_symbol_from_symbol(self, symbol):
+        """
+        get_unified_symbol_from_symbol
+        ==============================
+            This function get unified symbol from symbol.
+                :param self: This class instance.
+                :param symbol: str.
+                :return str: Return unified symbol.
+        """
+        result = symbol
+
+        full_list_symbols = self.get_exchange_full_list_symbols(False)
+
+        for symbol_rpl in full_list_symbols:
+            if symbol.replace('-', '').lower() == symbol_rpl.replace('/', '').lower():
+                result = symbol_rpl
+                break
+
+        return result
+
+    def __get_interval_from_unified_interval(self, interval):
+        result = '1'
+        result = interval
+
+        if 'm' in result:
+            result = result.replace('m', 'min')
+        elif 'h' in result or 'H' in result:
+            result = result.lower().replace('h', 'hour')
+            result = 60 * int(result)
+        elif 'd' in result or 'D' in result:
+            result = result.lower().replace('d', 'day')
+        elif 'w' in result or 'W' in result:
+            result = result.lower().replace('w', 'week')
+
+        result = str(result)
+
+        return result
+
+    def get_unified_interval_from_interval(self, interval):
+        """
+        get_unified_interval_from_interval
+        ==================================
+            This function get unified interval from interval.
+                :param self: This class instance.
+                :param interval: str.
+                :return str: Return unified interval.
+        """
+
+        result = interval
+
+        if result is not None:
+            if 'min' in result:
+                result = result.replace('min', 'm')
+            elif 'hour' in result:
+                result = result.replace('hour', 'h')
+            elif 'day' in result:
+                result = result.replace('day', 'd')
+            elif 'week' in result:
+                result = result.replace('week', 'w')
+
+            result = str(result)
+
+        return result
+
+    def if_symbol_supported(self, symbol):
         """
         if_symbol_supported
         ===================
@@ -257,12 +379,36 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         __data = self.get_exchange_full_list_symbols()
 
-        if isinstance(__data,list) and self.__ws_symbol in __data:
+        if isinstance(__data,list) and symbol in __data:
             result = True
 
         return result
 
-    def get_websocket_endpoint_path(self): # pylint: disable=too-many-statements
+    def get_stream_index(self, endpoint, symbol, interval: str='none'):
+        """
+        get_stream_index
+        ================
+            This function return a stream index for use in dict.
+                :param self: This class instance.
+                :param endpoint: str.
+                :param symbol: str unified symbol.
+                :param interval: str.
+                :return str: Return stream index
+        """
+        result = 'stream'
+
+        if interval is None:
+            interval = 'none'
+
+        result = result + '_' + endpoint + '_'\
+            + self.get_unified_symbol_from_symbol(symbol) + '_'\
+            + self.get_unified_interval_from_interval(interval)
+
+        result = result.replace('/','').lower()
+
+        return result
+
+    def get_websocket_endpoint_path(self):
         """
         get_websocket_endpoint_path
         ===========================
@@ -273,69 +419,61 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         result = None
 
-        if not self.__update_speed in ('100ms', '1000ms'):
-            self.__update_speed = '1000ms'
+        self.__ws_endpoint_on_open_vars = []
+        self.__ws_endpoint_on_close_vars = []
 
-        __send_data_vars = None
+        self.__ws_endpoint_url = ''
+        __id = str(time.time_ns())
+        self.__ws_endpoint_url = '&connectId=' + __id
 
-        if self.__ws_endpoint == 'order_book':
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['type'] = 'subscribe'
-            __send_data_vars['topic'] = '/market/level2:'\
-                + self.__ws_symbol.replace("/","-").upper()
-            __send_data_vars['privateChannel'] = False
-            __send_data_vars['response'] = True
+        for stream in self.__ws_streams:
+            interval = 'none'
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+            __topic_open = None
+            __topic_open = {}
+            __topic_open['id'] = __id
+            __topic_open['type'] = 'subscribe'
+            __topic_open['topic'] = ''
+            __topic_open['privateChannel'] = False
+            __topic_open['response'] = True
 
-        elif self.__ws_endpoint == 'kline':
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['type'] = 'subscribe'
-            __send_data_vars['topic'] = '/market/candles:'\
-                + self.__ws_symbol.replace("/","-").upper()\
-                + '_' + self.__interval.replace("m","min").replace("h","hour")\
-                    .replace("d","day").replace("w","week")
+            __topic_close = None
+            __topic_close = copy.copy(__topic_open)
+            __topic_close['type'] = 'unsubscribe'
+            time.sleep(0.050)
 
-            __send_data_vars['privateChannel'] = False
-            __send_data_vars['response'] = True
+            if stream['endpoint'] == 'order_book':
+                result = True
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+                __topic_open['topic'] = '/market/level2:'\
+                    + stream['symbol'].replace("/","-").upper()
+                __topic_close['topic'] = __topic_open['topic']
 
-        elif self.__ws_endpoint == 'trades':
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['type'] = 'subscribe'
-            __send_data_vars['topic'] = '/market/match:' + self.__ws_symbol.replace("/","-").upper()
-            __send_data_vars['privateChannel'] = False
-            __send_data_vars['response'] = True
+            elif stream['endpoint'] == 'kline':
+                interval = stream['interval']
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+                __topic_open['topic'] = '/market/candles:'\
+                    + stream['symbol'].replace("/","-").upper()\
+                    + '_' + self.__get_interval_from_unified_interval(interval)
+                __topic_close['topic'] = __topic_open['topic']
 
-        elif self.__ws_endpoint == 'ticker':
-            __send_data_vars = None
-            __send_data_vars = {}
-            __send_data_vars['id'] = str(time.time_ns())
-            __send_data_vars['type'] = 'subscribe'
-            __send_data_vars['topic'] = '/market/ticker:'\
-                + self.__ws_symbol.replace("/","-").upper()
-            __send_data_vars['privateChannel'] = False
-            __send_data_vars['response'] = True
 
-            self.__ws_endpoint_url = ''
-            self.__ws_endpoint_on_open_vars = json.dumps(__send_data_vars)
+            elif stream['endpoint'] == 'trades':
+                __topic_open['topic'] = '/market/match:' + stream['symbol'].replace("/","-").upper()
+                __topic_close['topic'] = __topic_open['topic']
 
-        if __send_data_vars is not None and isinstance(__send_data_vars,dict):
-            self.__ws_endpoint_on_close_vars = __send_data_vars
-            self.__ws_endpoint_on_close_vars['type'] = 'unsubscribe'
-            self.__ws_endpoint_on_close_vars = json.dumps(self.__ws_endpoint_on_close_vars)
+            elif stream['endpoint'] == 'ticker':
+                __topic_open['topic'] = '/market/ticker:'\
+                    + stream['symbol'].replace("/","-").upper()
+                __topic_close['topic'] = __topic_open['topic']
+
+            __stream_index = self.get_stream_index(stream['endpoint'],\
+                                                     stream['symbol'],\
+                                                     interval=interval)
+            self.__ws_temp_data[__stream_index] = None
+            self.__ws_endpoint_on_open_vars.append(json.dumps(__topic_open))
+            self.__ws_endpoint_on_close_vars.append(json.dumps(__topic_close))
+
 
         result = {}
         result['ws_endpoint_url'] = self.__ws_endpoint_url
@@ -346,37 +484,48 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         return result
 
-    def __init_order_book_data(self):
+    def __init_order_book_data(self, temp_data):
 
         result = False
+        __data = None
 
-        __url_dest = self.__url_api + '/api/v1/market/orderbook/level2_100?symbol='\
-            + str(self.__ws_symbol).replace("/","-").upper()
+        if 'symbol' in temp_data\
+            and temp_data['symbol'] is not None\
+            and isinstance(temp_data['symbol'], str):
+            __symbol = temp_data['symbol']
 
-        __data = ccf.file_get_contents_url(__url_dest)
+            __url_dest = self.__url_api + '/api/v1/market/orderbook/level2_100?symbol='\
+                + str(__symbol).replace("/","-").upper()
 
-        if __data is not None and ccf.is_json(__data):
-            __data = json.loads(__data)
 
-            if isinstance(__data,dict) and 'code' in __data and 'data' in __data\
-                and __data['code'] == '200000':
-                self.__ws_temp_data = None
-                self.__ws_temp_data = {}
-                self.__ws_temp_data['endpoint'] = self.__ws_endpoint
-                self.__ws_temp_data['exchange'] = self.__exchange
-                self.__ws_temp_data['symbol'] = self.__ws_symbol
-                self.__ws_temp_data['interval'] = None
-                self.__ws_temp_data['last_update_id'] = int(__data['data']['sequence'])
-                self.__ws_temp_data['diff_update_id'] = 0
-                self.__ws_temp_data['bids'] = __data['data']['bids']
-                self.__ws_temp_data['asks'] = __data['data']['asks']
-                self.__ws_temp_data['type'] = 'snapshot'
+            __data = ccf.file_get_contents_url(__url_dest)
 
-                result = True
+            if __data is not None and ccf.is_json(__data):
+                __data = json.loads(__data)
+
+                if __data is not None and isinstance(__data, dict)\
+                    and 'code' in __data and 'data' in __data\
+                    and __data['code'] == '200000':
+                    __stream_index = self.get_stream_index('order_book', __symbol)
+                    self.__ws_temp_data[__stream_index] = None
+                    self.__ws_temp_data[__stream_index] = {}
+                    self.__ws_temp_data[__stream_index]['endpoint'] = 'order_book'
+                    self.__ws_temp_data[__stream_index]['exchange'] = self.__exchange
+                    self.__ws_temp_data[__stream_index]['symbol'] = __symbol
+                    self.__ws_temp_data[__stream_index]['interval'] = None
+                    self.__ws_temp_data[__stream_index]['last_update_id'] = (
+                        int(__data['data']['sequence'])
+                    )
+                    self.__ws_temp_data[__stream_index]['diff_update_id'] = 0
+                    self.__ws_temp_data[__stream_index]['bids'] = __data['data']['bids']
+                    self.__ws_temp_data[__stream_index]['asks'] = __data['data']['asks']
+                    self.__ws_temp_data[__stream_index]['type'] = 'snapshot'
+
+                    result = True
 
         return result
 
-    def manage_websocket_message_order_book(self,data):
+    def manage_websocket_message_order_book(self, data):
         """
         manage_websocket_message_order_book
         ===================================
@@ -395,11 +544,13 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
             and 'type' in __temp_data and 'data' in __temp_data\
             and isinstance(__temp_data['data'],dict):
             if __temp_data['type'] == 'message':
+                __symbol = __temp_data['topic'].split(':')[1]
+                __stream_index = self.get_stream_index('order_book', __symbol)
 
                 if 'changes' in __temp_data['data']\
                     and isinstance(__temp_data['data']['changes'],dict):
-                    if self.__ws_temp_data is None:
-                        if self.__init_order_book_data()\
+                    if self.__ws_temp_data[__stream_index] is None:
+                        if self.__init_order_book_data(__temp_data['data'])\
                             and self.__manage_websocket_diff_data(__temp_data['data']):
                             __proc_data = True
                     elif self.__manage_websocket_diff_data(__temp_data['data']):
@@ -408,23 +559,23 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                 if __proc_data:
                     __message_out = None
                     __message_out = {}
-                    __message_out['endpoint'] = self.__ws_endpoint
+                    __message_out['endpoint'] = 'order_book'
                     __message_out['exchange'] = self.__exchange
-                    __message_out['symbol'] = self.__ws_symbol
+                    __message_out['symbol'] = __symbol
                     __message_out['interval'] = None
                     __message_out['last_update_id'] = (
-                        self.__ws_temp_data['last_update_id']
+                        self.__ws_temp_data[__stream_index]['last_update_id']
                     )
                     __message_out['diff_update_id'] = (
-                        self.__ws_temp_data['diff_update_id']
+                        self.__ws_temp_data[__stream_index]['diff_update_id']
                     )
                     __message_out['bids'] = (
-                        self.__ws_temp_data['bids'][:self.__result_max_len]
+                        self.__ws_temp_data[__stream_index]['bids'][:self.__result_max_len]
                     )
                     __message_out['asks'] = (
-                        self.__ws_temp_data['asks'][:self.__result_max_len]
+                        self.__ws_temp_data[__stream_index]['asks'][:self.__result_max_len]
                     )
-                    __message_out['type'] = self.__ws_temp_data['type']
+                    __message_out['type'] = self.__ws_temp_data[__stream_index]['type']
                     __current_datetime = datetime.datetime.utcnow()
                     __current_timestamp = __current_datetime.strftime("%s.%f")
                     __current_datetime = (
@@ -437,7 +588,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
 
         return result
 
-    def manage_websocket_message_kline(self,data):
+    def manage_websocket_message_kline(self, data):
         """
         manage_websocket_message_kline
         ==============================
@@ -452,42 +603,51 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         __temp_data = data
         __proc_data = False
 
-        if __temp_data is not None and isinstance(__temp_data,dict):
+        __symbol = None
+        __interval = None
+
+        if __temp_data is not None and isinstance(__temp_data, dict):
+            __interval = __temp_data['topic'].split('_')[1]
+
             if 'type' in __temp_data and 'data' in __temp_data\
                 and isinstance(__temp_data['data'],dict):
                 if 'candles' in __temp_data['data']\
                     and isinstance(__temp_data['data']['candles'],list)\
-                    and len(__temp_data['data']['candles']) > 0:
+                    and len(__temp_data['data']['candles']) > 0\
+                    and 'symbol' in __temp_data['data']:
+                    __symbol = __temp_data['data']['symbol']
+                    __stream_index = self.get_stream_index('kline', __symbol, __interval)
 
                     __delta_time = 60000
 
-                    if self.__interval[-1] == 'm':
-                        __delta_mult = int(self.__interval.replace('m',''))
+                    if 'min' in __interval:
+                        __delta_mult = int(__interval.replace('min',''))
                         __delta_time = 60000 * __delta_mult
 
-                    elif self.__interval[-1] == 'h' or self.__interval[-1] == 'H':
-                        __delta_mult = int(self.__interval.replace('h','').replace('H',''))
+                    elif 'hour' in __interval:
+                        __delta_mult = int(__interval.replace('hour',''))
                         __delta_time = 60000 * __delta_mult * 60
 
-                    elif self.__interval[-1] == 'd' or self.__interval[-1] == 'D':
-                        __delta_mult = int(self.__interval.replace('d','').replace('D',''))
+                    elif 'day' in __interval:
+                        __delta_mult = int(__interval.replace('day',''))
                         __delta_time = 60000 * __delta_mult * 60 * 24
 
-                    elif self.__interval[-1] == 'w' or self.__interval[-1] == 'W':
-                        __delta_mult = int(self.__interval.replace('w','').replace('W',''))
+                    elif 'week' in __interval:
+                        __delta_mult = int(__interval.replace('week',''))
                         __delta_time = 60000 * __delta_mult * 60 * 24
 
                     __delta_time = __delta_time - 1
 
-                    if self.__ws_temp_data is None or not isinstance(self.__ws_temp_data,dict):
-                        self.__ws_temp_data = {}
+                    if self.__ws_temp_data[__stream_index] is None\
+                        or not isinstance(self.__ws_temp_data[__stream_index], dict):
+                        self.__ws_temp_data[__stream_index] = {}
 
                     __message_add = None
                     __message_add = {}
-                    __message_add['endpoint'] = self.__ws_endpoint
+                    __message_add['endpoint'] = 'kline'
                     __message_add['exchange'] = self.__exchange
-                    __message_add['symbol'] = self.__ws_symbol
-                    __message_add['interval'] = self.__interval
+                    __message_add['symbol'] = __symbol
+                    __message_add['interval'] = __interval
                     __message_add['last_update_id'] = __temp_data['data']['time']
                     __message_add['open_time'] = int(__temp_data['data']['candles'][0]) * 1000
                     __message_add['close_time'] = (
@@ -508,15 +668,17 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                     __message_add['volume'] = __temp_data['data']['candles'][5]
                     __message_add['is_closed'] = None
 
-                    self.__ws_temp_data[int(__message_add['open_time'])] = __message_add
+                    self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = (
+                        __message_add
+                    )
 
-                    while len(self.__ws_temp_data) > self.__data_max_len:
-                        __first_key = min(list(self.__ws_temp_data.keys()))
-                        __nc = self.__ws_temp_data.pop(__first_key,None)
+                    while len(self.__ws_temp_data[__stream_index]) > self.__data_max_len:
+                        __first_key = min(list(self.__ws_temp_data[__stream_index].keys()))
+                        __nc = self.__ws_temp_data[__stream_index].pop(__first_key,None)
 
-                    __message_out = list(self.__ws_temp_data.values())
+                    __message_out = list(self.__ws_temp_data[__stream_index].values())
 
-                    result = __message_out
+                    result = __message_out[:self.__result_max_len]
 
         return result
 
@@ -535,19 +697,23 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
         __temp_data = data
         __proc_data = False
 
-        if __temp_data is not None and isinstance(__temp_data,dict):
+        if __temp_data is not None and isinstance(__temp_data, dict):
             if 'type' in __temp_data and __temp_data['type'] == 'message'\
-                and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
+                and  'data' in __temp_data and isinstance(__temp_data['data'], dict)\
+                and 'symbol' in __temp_data['data']:
 
-                if self.__ws_temp_data is None:
-                    self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
+                __symbol = __temp_data['data']['symbol']
+                __stream_index = self.get_stream_index('trades', __symbol)
+
+                if self.__ws_temp_data[__stream_index] is None:
+                    self.__ws_temp_data[__stream_index] = queue.Queue(maxsize=self.__data_max_len)
 
                 __message_add = None
                 __message_add = {}
-                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['endpoint'] = 'trades'
                 __message_add['exchange'] = self.__exchange
-                __message_add['symbol'] = self.__ws_symbol
-                __message_add['interval'] = self.__interval
+                __message_add['symbol'] = __symbol
+                __message_add['interval'] = None
                 __message_add['event_time'] = int(round(time.time_ns() / 1000000))
                 __message_add['trade_id'] = str(__temp_data['data']['tradeId'])
                 __message_add['price'] = str(__temp_data['data']['price'])
@@ -564,19 +730,19 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                 )
                 __message_add['side_of_taker'] = __temp_data['data']['side'].upper()
 
-                if self.__ws_temp_data.full():
-                    self.__ws_temp_data.get(True,1)
+                if self.__ws_temp_data[__stream_index].full():
+                    self.__ws_temp_data[__stream_index].get(True,1)
 
-                self.__ws_temp_data.put(__message_add,True,5)
+                self.__ws_temp_data[__stream_index].put(__message_add,True,5)
 
-                __message_out = list(self.__ws_temp_data.queue)
-                __message_out.reverse()
+                __message_out = list(self.__ws_temp_data[__stream_index].queue)
+                ##__message_out.reverse()
 
-                result = __message_out
+                result = __message_out[:self.__result_max_len]
 
         return result
 
-    def manage_websocket_message_ticker(self,data):
+    def manage_websocket_message_ticker(self, data):
         """
         manage_websocket_message_ticker
         ===============================
@@ -595,15 +761,17 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
             if 'type' in __temp_data and __temp_data['type'] == 'message'\
                 and  'data' in __temp_data and isinstance(__temp_data['data'],dict):
 
-                if self.__ws_temp_data is None:
-                    self.__ws_temp_data = queue.Queue(maxsize=self.__data_max_len)
+                __symbol = __temp_data['topic'].split(':')[1]
+                __stream_index = self.get_stream_index('ticker', __symbol)
+
+                self.__ws_temp_data[__stream_index] = __temp_data
 
                 __message_add = None
                 __message_add = {}
-                __message_add['endpoint'] = self.__ws_endpoint
+                __message_add['endpoint'] = 'ticker'
                 __message_add['exchange'] = self.__exchange
-                __message_add['symbol'] = self.__ws_symbol
-                __message_add['interval'] = self.__interval
+                __message_add['symbol'] = __symbol
+                __message_add['interval'] = None
                 __message_add['event_type'] = '24hrTicker'
                 __message_add['event_time'] = int(round(time.time_ns() / 1000000))
                 __message_add['event_time_date'] = (
@@ -659,7 +827,27 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                 __temp_data = json.loads(message_in)
                 __proc_data = False
 
-                if self.__ws_endpoint == 'order_book':
+                __endpoint = 'NONE'
+
+                if __temp_data is not None\
+                    and isinstance(__temp_data, dict)\
+                    and 'topic' in __temp_data\
+                    and __temp_data['topic'] is not None\
+                    and isinstance(__temp_data['topic'], str)\
+                    and len(__temp_data['topic']) > 0:
+
+                    __tmp_endpoint = __temp_data['topic'].split(':')[0]
+
+                    if __tmp_endpoint == '/market/level2':
+                        __endpoint = 'order_book'
+                    elif __tmp_endpoint == '/market/candles':
+                        __endpoint = 'kline'
+                    elif __tmp_endpoint == '/market/match':
+                        __endpoint = 'trades'
+                    elif __tmp_endpoint == '/market/ticker':
+                        __endpoint = 'ticker'
+
+                if __endpoint == 'order_book':
                     __message_out = self.manage_websocket_message_order_book(__temp_data)
 
                     result = {}
@@ -667,7 +855,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'kline':
+                elif __endpoint == 'kline':
                     __message_out = self.manage_websocket_message_kline(__temp_data)
 
                     result = {}
@@ -675,7 +863,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'trades':
+                elif __endpoint == 'trades':
                     __message_out = self.manage_websocket_message_trades(__temp_data)
 
                     result = {}
@@ -683,7 +871,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-                elif self.__ws_endpoint == 'ticker':
+                elif __endpoint == 'ticker':
                     __message_out = self.manage_websocket_message_ticker(__temp_data)
 
                     result = {}
@@ -691,22 +879,34 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
                     result['min_proc_time_ms'] = 0
                     result['max_proc_time_ms'] = 0
 
-
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))
 
         return result
 
-    def __manage_websocket_diff_data(self,diff_data): # pylint: disable=too-many-branches
+    def __manage_websocket_diff_data(self, diff_data):
 
         result = False
 
-        current_data = self.__ws_temp_data
-        current_data_seq = current_data['last_update_id']
+        __symbol = None
+        __stream_index = None
+
+        current_data = None
+        current_data_seq = 0
+
+        if 'symbol' in diff_data\
+            and diff_data['symbol'] is not None\
+            and isinstance(diff_data['symbol'], str):
+            __symbol = diff_data['symbol']
+            __stream_index = self.get_stream_index('order_book', __symbol)
+
+            current_data = self.__ws_temp_data[__stream_index]
+            current_data_seq = current_data['last_update_id']
 
         if isinstance(diff_data['changes'],dict) and 'bids' in diff_data['changes']\
             and 'asks' in diff_data['changes'] and isinstance(diff_data['changes']['bids'],list)\
-            and isinstance(diff_data['changes']['asks'],list):
+            and isinstance(diff_data['changes']['asks'],list) and __symbol is not None\
+            and __stream_index is not None and current_data is not None:
             __temp_bids_d = {}
             __temp_asks_d = {}
             __temp_bids_l = []
@@ -751,7 +951,7 @@ class KucoinCcxwAuxClass(): # pylint: disable=too-many-instance-attributes, dupl
             current_data['last_update_id'] = int(diff_data['sequenceEnd'])
             current_data['diff_update_id'] = current_data['last_update_id'] - current_data_seq
             current_data['type'] = 'update'
-            self.__ws_temp_data = current_data
+            self.__ws_temp_data[__stream_index] = current_data
             result = True
 
         return result

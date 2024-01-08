@@ -20,20 +20,47 @@ import time
 import pprint
 from ccxw import Ccxw
 
-exchange = 'binance'
-endpoint = 'order_book'
 symbol = 'BTC/USDT'
 
-wsm = Ccxw(exchange, endpoint, symbol, result_max_len=20)  # Create instance
+streams = [\
+                {\
+                    'endpoint': 'order_book',\
+                    'symbol': symbol
+                },\
+                {\
+                    'endpoint': 'kline',\
+                    'symbol': symbol,\
+                    'interval': interval\
+                },\
+                {\
+                    'endpoint': 'trades',\
+                    'symbol': symbol
+                },\
+                {\
+                    'endpoint': 'ticker',\
+                    'symbol': symbol
+                }\
+        ]
+
+wsm = Ccxw('binance',\
+            streams,\
+            result_max_len=5,\
+            data_max_len=10)
 
 wsm.start()  # Start getting data
 
 time.sleep(2)  # Wait for available data
 
 for i in range(0, 10):
-    data = wsm.get_current_data()
-    pprint.pprint(data, sort_dicts=False)
-    time.sleep(1)
+    for stream in streams:
+        interval = 'none'
+        if 'interval' in stream:
+            interval = stream['interval']
+        data = wsm.get_current_data(stream['endpoint'], stream['symbol'], interval)
+        pprint.pprint(data, sort_dicts=False)
+        print('----------------------------------')
+        time.sleep(1)
+    print('============================================================')
 
 wsm.stop()  # Stop getting data
 ```
