@@ -222,6 +222,15 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #                     }
     #             ]
 
+    # streams = [
+    #                 {
+    #                     'endpoint': 'kline',
+    #                     'symbol': symbol_in,
+    #                     'interval': interval
+    #                 }
+    #         ]
+
+
     wsm0 = None
 
     time_max = 5
@@ -255,6 +264,8 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
         except Exception as exc: # pylint: disable=broad-except
             print('EXCEPTION: ' + str(exc))
             wsm0 = None
+
+        # return result
 
         if wsm0 is not None:
             # print('ACA: 0')

@@ -355,10 +355,11 @@ class BinanceCcxwAuxClass():
 
                 __send_data_vars['params'].append(stream['symbol'].replace("/","").lower() +\
                                                 '@depth' + '@' + update_speed)
+
             elif stream['endpoint'] == 'kline':
                 result = True
                 interval = stream['interval']
-                interval_out = interval
+                interval_out = str(interval)
                 if 'm' in interval_out:
                     interval_out = interval_out.replace('m', '')
                 elif 'h' in interval_out or 'H' in interval_out:
@@ -368,11 +369,12 @@ class BinanceCcxwAuxClass():
                     interval_out = 'D'
                 elif 'w' in interval_out or 'W' in interval_out:
                     interval_out = 'W'
-                if 'M' in interval_out:
+                elif 'M' in interval_out:
                     interval_out = 'M'
 
                 __send_data_vars['params'].append(stream['symbol'].replace("/","").lower() +\
                                                   '@kline_' + str(interval))
+
             elif stream['endpoint'] == 'trades':
                 result = True
                 __send_data_vars['params'].append(stream['symbol'].replace("/","").lower() +\

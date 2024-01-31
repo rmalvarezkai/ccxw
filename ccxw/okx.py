@@ -518,20 +518,24 @@ class OkxCcxwAuxClass():
         return result
 
     def __get_interval_from_unified_interval(self, interval):
+
         result = interval
 
-        if 'm' in result:
-            pass
-        elif 'h' in result or 'H' in result:
-            result = result.upper() + 'utc'
-        elif 'd' in result or 'D' in result:
-            result = result.upper() + 'utc'
-        elif 'w' in result or 'W' in result:
-            result = result.upper() + 'utc'
-        elif 'mo' in result:
-            result = result.replace('mo', 'M').upper() + 'utc'
+        if interval is not None:
+            result = str(interval)
 
-        result = str(result)
+            if 'm' in result:
+                pass
+            elif 'h' in result or 'H' in result:
+                result = result.upper() + 'utc'
+            elif 'd' in result or 'D' in result:
+                result = result.upper() + 'utc'
+            elif 'w' in result or 'W' in result:
+                result = result.upper() + 'utc'
+            elif 'mo' in result:
+                result = result.replace('mo', 'M').upper() + 'utc'
+
+            result = str(result)
 
         return result
 

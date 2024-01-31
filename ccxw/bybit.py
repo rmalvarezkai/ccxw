@@ -326,7 +326,7 @@ class BybitCcxwAuxClass():
 
     def __get_interval_from_unified_interval(self, interval):
         result = '1'
-        result = interval
+        result = str(interval)
         if 'm' in result:
             result = result.replace('m', '')
         elif 'h' in result or 'H' in result:
@@ -336,7 +336,7 @@ class BybitCcxwAuxClass():
             result = 'D'
         elif 'w' in result or 'W' in result:
             result = 'W'
-        if 'M' in result:
+        elif 'M' in result:
             result = 'M'
 
         result = str(result)
@@ -353,7 +353,7 @@ class BybitCcxwAuxClass():
                 :return str: Return unified interval.
         """
 
-        result = interval
+        result = str(interval)
 
         if result is not None:
             if result.isnumeric():

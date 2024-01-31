@@ -324,19 +324,21 @@ class KucoinCcxwAuxClass():
 
     def __get_interval_from_unified_interval(self, interval):
         result = '1'
-        result = interval
 
-        if 'm' in result:
-            result = result.replace('m', 'min')
-        elif 'h' in result or 'H' in result:
-            result = result.lower().replace('h', 'hour')
-            result = 60 * int(result)
-        elif 'd' in result or 'D' in result:
-            result = result.lower().replace('d', 'day')
-        elif 'w' in result or 'W' in result:
-            result = result.lower().replace('w', 'week')
+        if interval is not None:
+            result = str(interval)
 
-        result = str(result)
+            if 'm' in result:
+                result = result.replace('m', 'min')
+            elif 'h' in result or 'H' in result:
+                result = result.lower().replace('h', 'hour')
+                result = 60 * int(result)
+            elif 'd' in result or 'D' in result:
+                result = result.lower().replace('d', 'day')
+            elif 'w' in result or 'W' in result:
+                result = result.lower().replace('w', 'week')
+
+            result = str(result)
 
         return result
 
@@ -353,6 +355,8 @@ class KucoinCcxwAuxClass():
         result = interval
 
         if result is not None:
+            result = str(interval)
+
             if 'min' in result:
                 result = result.replace('min', 'm')
             elif 'hour' in result:

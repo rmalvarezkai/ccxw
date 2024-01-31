@@ -569,22 +569,24 @@ class BingxCcxwAuxClass():
 
     def __get_interval_from_unified_interval(self, interval):
         result = '1'
-        result = interval
 
-        if 'm' in result:
-            result = result.replace('m', 'min')
-        elif result == '1h':
-            result = '60m'
-        elif 'h' in result:
-            result = result.replace('h', 'hour')
-        elif 'd' in result:
-            result = result.replace('d', 'day')
-        elif 'w' in result:
-            result = result.replace('w', 'week')
-        elif 'mo' in result:
-            result = result.replace('mo', 'mon')
+        if interval is not None:
+            result = str(interval)
 
-        result = str(result)
+            if 'm' in result:
+                result = result.replace('m', 'min')
+            elif result == '1h':
+                result = '60m'
+            elif 'h' in result:
+                result = result.replace('h', 'hour')
+            elif 'd' in result:
+                result = result.replace('d', 'day')
+            elif 'w' in result:
+                result = result.replace('w', 'week')
+            elif 'mo' in result:
+                result = result.replace('mo', 'mon')
+
+            result = str(result)
 
         return result
 
