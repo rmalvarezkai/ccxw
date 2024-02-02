@@ -16,6 +16,7 @@ import sqlite3
 import base64
 import random
 import gzip
+import humanize
 
 import websocket
 from .binance import BinanceCcxwAuxClass
@@ -193,6 +194,7 @@ class Ccxw():
 
             #self.__conn_db = sqlite3.connect(self.__database_name, check_same_thread=False)
             self.__conn_db = sqlite3.connect(':memory:', check_same_thread=False)
+            self.__conn_db_lock = threading.Lock()
 
             self.__result_max_len = min(self.__result_max_len, self.__data_max_len)
             self.__result_max_len = max(self.__result_max_len, 1)
@@ -239,10 +241,10 @@ class Ccxw():
                             __get_websocket_endpoint_data['ws_endpoint_on_auth_vars']
                         )
             else:
-                raise ValueError('0 The exchange ' + str(exchange) + ' have not websocket api.')
+                raise ValueError('The exchange ' + str(exchange) + ' have not websocket api.')
 
         else:
-            raise ValueError('1 The exchange ' + str(exchange) + ' have not websocket api.')
+            raise ValueError('The exchange ' + str(exchange) + ' have not websocket api.')
 
     def __del__(self):
 
@@ -253,8 +255,9 @@ class Ccxw():
         #     self.__auxiliary_class.stop()
 
         if hasattr(self,'__conn_db') and self.__conn_db is not None:
-            self.__conn_db.commit()
-            self.__conn_db.close()
+            with self.__conn_db_lock:
+                self.__conn_db.commit()
+                self.__conn_db.close()
 
         if hasattr(self,'__database_name') and self.__database_name is not None:
             if os.path.exists(self.__database_name):
@@ -407,21 +410,22 @@ class Ccxw():
         result = False
 
         try:
-            self.__cursor_db = self.__conn_db.cursor()
+            with self.__conn_db_lock:
+                self.__cursor_db = self.__conn_db.cursor()
 
-            __sql_create_table_db = f'DROP TABLE IF EXISTS {self.__table_name};\n'
-            __sql_create_table_db += f'CREATE TABLE IF NOT EXISTS {self.__table_name} \
-                                        (key_data VARCHAR(40) PRIMARY KEY, value_data TEXT);\n'
+                __sql_create_table_db = f'DROP TABLE IF EXISTS {self.__table_name};\n'
+                __sql_create_table_db += f'CREATE TABLE IF NOT EXISTS {self.__table_name} \
+                                            (key_data VARCHAR(40) PRIMARY KEY, value_data TEXT);\n'
 
-            self.__cursor_db.executescript(__sql_create_table_db)
+                self.__cursor_db.executescript(__sql_create_table_db)
 
-            for __key_data in self.__key_sel.values():
-                __sql_insert_data = f'INSERT INTO {self.__table_name} \
-                                        (key_data, value_data) VALUES (?, NULL);\n'
-                self.__cursor_db.execute(__sql_insert_data, (str(__key_data),))
+                for __key_data in self.__key_sel.values():
+                    __sql_insert_data = f'INSERT INTO {self.__table_name} \
+                                            (key_data, value_data) VALUES (?, NULL);\n'
+                    self.__cursor_db.execute(__sql_insert_data, (str(__key_data),))
 
-            self.__conn_db.commit()
-            result = True
+                self.__conn_db.commit()
+                result = True
         except Exception as exc: # pylint: disable=broad-except
             result = False
             print(str(exc))
@@ -591,11 +595,13 @@ class Ccxw():
                     __sql_update = (
                         f'UPDATE {self.__table_name} SET value_data = ? WHERE key_data = ?;'
                     )
-                    self.__cursor_db = self.__conn_db.cursor()
-                    self.__cursor_db.execute(__sql_update,\
-                                             (str(__message_base64),\
-                                              str(self.__key_sel[__index_key_sel])))
-                    self.__conn_db.commit()
+
+                    with self.__conn_db_lock:
+                        self.__cursor_db = self.__conn_db.cursor()
+                        self.__cursor_db.execute(__sql_update,\
+                                                (str(__message_base64),\
+                                                str(self.__key_sel[__index_key_sel])))
+                        self.__conn_db.commit()
 
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))
@@ -632,9 +638,10 @@ class Ccxw():
         __sql_select = f'SELECT value_data FROM "{self.__table_name}" WHERE key_data = ?;'
 
         try:
-            __local_cursor_db = self.__conn_db.cursor()
-            __local_cursor_db.execute(__sql_select, (str(self.__key_sel[__index_key_sel]),))
-            __current_data = __local_cursor_db.fetchone()
+            with self.__conn_db_lock:
+                __local_cursor_db = self.__conn_db.cursor()
+                __local_cursor_db.execute(__sql_select, (str(self.__key_sel[__index_key_sel]),))
+                __current_data = __local_cursor_db.fetchone()
 
             if __current_data is not None\
                 and isinstance(__current_data,(list, tuple))\
@@ -673,6 +680,48 @@ class Ccxw():
             print(str(exc))
 
         return result
+
+    def get_sqlite_memory_used(self):
+        """
+        Ccxw get_sqlite_memory_used function.
+        =====================================
+            This method return a estimated bytes used for sqlite temporary database
+                :param self: Ccxw instance.
+
+                :return: int.
+        """
+
+        result = 0
+
+        with self.__conn_db_lock:
+            try:
+                __sql_to_exec = 'select page_size * page_count'
+                __sql_to_exec += ' from pragma_page_count(), pragma_page_size();'
+                cursor = self.__conn_db.cursor()
+                cursor.execute(__sql_to_exec)
+                result = int(cursor.fetchone()[0])
+            except Exception: # pylint: disable=broad-except
+                result = 0
+
+        return result
+
+    def get_sqlite_memory_used_human_readable(self):
+        """
+        Ccxw get_sqlite_memory_used_human_readable function.
+        ====================================================
+            This method return a estimated bytes used for sqlite temporary database\
+                ( In human readable format)
+                :param self: Ccxw instance.
+
+                :return: str.
+        """
+
+        result = ''
+        __db_size = self.get_sqlite_memory_used()
+        result = humanize.naturalsize(__db_size)
+
+        return result
+
 
     @classmethod
     def get_supported_exchanges(cls):

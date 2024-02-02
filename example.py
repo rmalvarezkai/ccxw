@@ -233,8 +233,8 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
 
     wsm0 = None
 
-    time_max = 5
-    time_sleep = 1
+    time_max = 50
+    time_sleep = 5
     testmode = False
     result_max_len = 4
     #result_max_len = 500
@@ -300,6 +300,12 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                         print(str(i) + '    ' +\
                             '====================================================================')
                     time.sleep(1)
+                    __db_size = wsm0.get_sqlite_memory_used()
+                    print('+++++++++++++++++++++++++++++++++++++++++++++++++++')
+                    print(f'Sqlite database size: {__db_size}')
+                    __db_size = wsm0.get_sqlite_memory_used_human_readable()
+                    print(f'Sqlite database size: {__db_size}')
+                    print('+++++++++++++++++++++++++++++++++++++++++++++++++++')
 
                 time.sleep(time_sleep)
 
