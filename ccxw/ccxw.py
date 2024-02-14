@@ -143,6 +143,11 @@ class Ccxw():
         self.__data_max_len = min(self.__data_max_len, 400)
         self.__data_max_len = max(self.__data_max_len, 1)
 
+        self.__current_ccxw_thread = threading.current_thread()
+
+        if self.__current_ccxw_thread is not None:
+            self.__current_ccxw_thread.name = 'class_ccxw_thread'
+
         if exchange not in Ccxw.get_supported_exchanges():
             raise ValueError('The exchange ' + str(exchange) + ' is not supported.')
 
@@ -327,7 +332,9 @@ class Ccxw():
 
         try:
             self.__stop_launcher = False # Used in self.stop()
-            self.__thread = threading.Thread(target=self.__websocket_launcher,args=(self.__socket,))
+            self.__thread = threading.Thread(target=self.__websocket_launcher,\
+                                             args=(self.__socket,),\
+                                             name='ccxw_websocket_thread')
             self.__thread.start()
             result = True
         except Exception: # pylint: disable=broad-except
