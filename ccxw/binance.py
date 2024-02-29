@@ -348,7 +348,7 @@ class BinanceCcxwAuxClass():
 
         for stream in self.__ws_streams:
             interval = 'none'
-            update_speed = '1000ms'
+            update_speed = '100ms'
 
             if stream['endpoint'] == 'order_book':
                 result = True
