@@ -28,7 +28,7 @@ class BybitCcxwAuxClass():
                  trading_type: str='SPOT',\
                  testmode: bool=False,\
                  result_max_len: int=5,\
-                 data_max_len: int=1000,\
+                 data_max_len: int=2500,\
                  debug: bool=False):
         """
         BybitCcxwAuxClass constructor
@@ -48,7 +48,7 @@ class BybitCcxwAuxClass():
             :param trading_type: str only allowed 'SPOT'.
             :param testmode: bool.
             :param result_max_len: int Max return values > 1 and <= data_max_len.
-            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param data_max_len: int. > 1 and <= 2500 max len of data getting from exchange.
             :param debug: bool Verbose output.
 
             :return: Return a new instance of the Class BybitCcxwAuxClass.
@@ -68,13 +68,13 @@ class BybitCcxwAuxClass():
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
-        self.__data_max_len = min(self.__data_max_len, 400)
+        self.__data_max_len = min(self.__data_max_len, 2500)
 
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
 
-        self.__result_max_len = min(self.__result_max_len, 500)
+        self.__result_max_len = min(self.__result_max_len, self.__data_max_len)
 
         self.__result_max_len = max(self.__result_max_len, 1)
 

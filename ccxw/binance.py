@@ -28,7 +28,7 @@ class BinanceCcxwAuxClass():
                  trading_type: str='SPOT',\
                  testmode: bool=False,\
                  result_max_len: int=5,\
-                 data_max_len: int=1000,\
+                 data_max_len: int=2500,\
                  debug: bool=False):
         """
         BinanceCcxwAuxClass constructor
@@ -49,7 +49,7 @@ class BinanceCcxwAuxClass():
             :param testmode: bool.
             :param result_max_len: int Max return values > 1 and <= data_max_len.
                 | '4H' | '6H' | '8H' | '12H' | '1D' | '3D' | '1W' | '1M'.
-            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param data_max_len: int. > 1 and <= 2500 max len of data getting from exchange.
             :param debug: bool Verbose output.
 
             :return: Return a new instance of the Class BinanceCcxwAuxClass.
@@ -69,13 +69,13 @@ class BinanceCcxwAuxClass():
         self.__trading_type = trading_type
         self.__data_max_len = data_max_len
 
-        self.__data_max_len = min(self.__data_max_len,400)
+        self.__data_max_len = min(self.__data_max_len, 2500)
 
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__result_max_len = result_max_len
 
-        self.__result_max_len = min(self.__result_max_len, 500)
+        self.__result_max_len = min(self.__result_max_len, self.__data_max_len)
 
         self.__result_max_len = max(self.__result_max_len, 1)
 
@@ -426,7 +426,7 @@ class BinanceCcxwAuxClass():
         __stream_index = self.get_stream_index(endpoint, symbol, interval=interval)
 
         __url_dest = self.__url_api + '/depth?symbol=' +\
-            str(symbol).replace("/","").upper() + '&limit=500'
+            str(symbol).replace("/","").upper() + '&limit=1000'
 
         __data = ccf.file_get_contents_url(__url_dest)
 

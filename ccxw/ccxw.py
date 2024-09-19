@@ -111,7 +111,7 @@ class Ccxw():
 
     def __init__(self, exchange, streams=list[dict], trading_type: str='SPOT',\
         testmode: bool=False, result_max_len: int=5,\
-        data_max_len: int=400, debug: bool=False):
+        data_max_len: int=2500, debug: bool=False):
         """
         Ccxw constructor
         ================
@@ -131,7 +131,7 @@ class Ccxw():
             :param trading_type: str only allowed 'SPOT'.
             :param testmode: bool.
             :param result_max_len: int Max return values > 1 and <= data_max_len.
-            :param data_max_len: int. > 1 and <= 400 max len of data getting from exchange.
+            :param data_max_len: int. > 1 and <= 2500 max len of data getting from exchange.
             :param debug: bool Output verbosity.
 
             :return: Return a new instance of the Class Ccxw.
@@ -140,7 +140,7 @@ class Ccxw():
         self.__debug = debug
         self.__data_max_len = data_max_len
 
-        self.__data_max_len = min(self.__data_max_len, 400)
+        self.__data_max_len = min(self.__data_max_len, 2500)
         self.__data_max_len = max(self.__data_max_len, 1)
 
         self.__current_ccxw_thread = threading.current_thread()
