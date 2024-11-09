@@ -699,11 +699,10 @@ class BingxCcxwAuxClass():
 
         for stream in self.__ws_streams:
             interval = 'none'
-            update_speed = '100ms'
 
             if stream['endpoint'] == 'order_book':
                 __ws_args_client.append(stream['symbol'].replace("/","-").upper()\
-                                             + '@depth' + '100' + '@' + update_speed)
+                                             + '@depth' + '100')
 
             elif stream['endpoint'] == 'kline':
                 interval = stream['interval']
