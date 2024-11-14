@@ -594,8 +594,13 @@ class KucoinCcxwAuxClass():
 
             __req_ping = json.dumps(__req_ping, sort_keys=False)
 
-            with self.__ws_lock:
-                self.__ws.send(__req_ping)
+            try:
+                with self.__ws_lock:
+                    if self.__ws is not None:
+                        self.__ws.send(__req_ping)
+                result = True
+            except Exception: # pylint: disable=broad-except
+                result = False
 
         return result
 
@@ -619,10 +624,12 @@ class KucoinCcxwAuxClass():
                 __local_con_id = self.__ws_conn_id_lock
 
             if __local_con_id is not None:
-                self.__send_ping()
-                __sleep_time = self.ping_interval_ms - abs(time.time() - __last_ping_time)
-                __sleep_time -= 1
-                __last_ping_time = time.time()
+                if self.__send_ping():
+                    __sleep_time = self.ping_interval_ms - abs(time.time() - __last_ping_time)
+                    __sleep_time -= 1
+                    __last_ping_time = time.time()
+                else:
+                    __sleep_time = 1
 
                 if __sleep_time <= 0:
                     __sleep_time = 1
