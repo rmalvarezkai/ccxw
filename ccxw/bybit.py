@@ -496,7 +496,7 @@ class BybitCcxwAuxClass():
 
         return result
 
-    def __send_ping(self, local_ws):
+    def __send_ping(self):
         result = False
 
         __local_stop = True
@@ -504,15 +504,21 @@ class BybitCcxwAuxClass():
         with self.__stop_flag_lock:
             __local_stop = self.__stop_flag
 
-        if not __local_stop and local_ws is not None:
-            __id = ccf.random_string(9) + str(round(time.time() * 1000000))
-            __req_ping = {
-                'req_id': __id,
-                'op': 'ping'
-            }
+        __id = ccf.random_string(9) + str(round(time.time() * 1000000))
+        __req_ping = {
+            'req_id': __id,
+            'op': 'ping'
+        }
 
-            __req_ping = json.dumps(__req_ping, sort_keys=False)
-            local_ws.send(__req_ping)
+        __req_ping = json.dumps(__req_ping, sort_keys=False)
+
+        try:
+            with self.__ws_lock:
+                if self.__ws is not None and not __local_stop:
+                    self.__ws.send(__req_ping)
+                result = True
+        except Exception: # pylint: disable=broad-except
+            result = False
 
         return result
 
@@ -527,15 +533,11 @@ class BybitCcxwAuxClass():
 
         while not __local_stop:
 
-            if __local_ws is not None:
-                self.__send_ping(__local_ws)
+            if self.__send_ping():
                 __sleep_time = __ping_interval - abs(time.time() - __last_ping_time)
                 __last_ping_time = time.time()
-
-                if __sleep_time <= 0:
-                    __sleep_time = 1
             else:
-                __sleep_time = __ping_interval
+                __sleep_time = 1
 
             __sleep_time -= 1
 
