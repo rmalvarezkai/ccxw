@@ -10,6 +10,8 @@ import urllib.parse
 import urllib.request
 import json
 import socket
+import random
+import string
 
 def is_json(myjson):
     """
@@ -51,6 +53,19 @@ def is_convertible_to_json(myvar):
         result = False
 
     return result
+
+def random_string(n=14):
+    """
+    random_string
+    =============
+    This function returns a random string of the specified length.
+
+    :param n: int Length of the resulting string (default is 14).
+
+    :return str: A randomly generated string of length 'n'.
+    """
+    letters = string.ascii_letters + '0123456789'
+    return ''.join(random.choice(letters) for _ in range(n))
 
 def file_get_contents_url(url,mode="b",post_data=None,headers=None,timeout=9):
     """

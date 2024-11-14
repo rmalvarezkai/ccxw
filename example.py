@@ -353,11 +353,11 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
 
                         ##data0 = None
 
-                            if data0 is not None:
-                                pprint.pprint(data0, sort_dicts=False)
-                                print('')
-                                print(str(i) + '    ' +\
-                                    '------------------------------------------------------------')
+                            # if data0 is not None:
+                            #     pprint.pprint(data0, sort_dicts=False)
+                            #     print('')
+                            #     print(str(i) + '    ' +\
+                            #         '-----------------------------------------------------------')
 
                             time.sleep(1)
 

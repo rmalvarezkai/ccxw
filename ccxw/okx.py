@@ -158,18 +158,19 @@ class OkxCcxwAuxClass():
         self.__is_stopped = True
         self.__stop_ws_clients()
 
-        time.sleep(2)
+        time.sleep(5)
 
         if self.__ws_server is not None:
             self.__ws_server.deny_new_connections()
             self.__ws_server.disconnect_clients_gracefully()
-            time.sleep(1)
+            time.sleep(2)
             self.__ws_server.shutdown_gracefully()
-            self.__ws_server.disconnect_clients_gracefully()
-            time.sleep(1)
+            time.sleep(2)
             self.__ws_server.disconnect_clients_abruptly()
-            #self.__ws_server.shutdown_abruptly()
-            #self.__ws_server = None
+            time.sleep(3)
+            self.__ws_server.server_close()
+            # self.__ws_server.shutdown_abruptly()
+            # self.__ws_server = None
 
     def __check_streams_struct(self, streams):
         """
@@ -268,6 +269,9 @@ class OkxCcxwAuxClass():
 
         return result
 
+    def __manage_websocket_reconnect(self, ws):
+        result = self.__manage_websocket_open(ws)
+        return result
 
     def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
         result = False
@@ -309,7 +313,7 @@ class OkxCcxwAuxClass():
             and self.__thread_public.is_alive():
 
             try:
-                self.__thread_public.join(9)
+                self.__thread_public.join(45)
             except Exception: # pylint: disable=broad-except
                 pass
 
@@ -318,7 +322,7 @@ class OkxCcxwAuxClass():
             and self.__thread_bussiness.is_alive():
 
             try:
-                self.__thread_bussiness.join(9)
+                self.__thread_bussiness.join(45)
             except Exception: # pylint: disable=broad-except
                 pass
 
@@ -331,6 +335,7 @@ class OkxCcxwAuxClass():
                 websocket.WebSocketApp(__socket,\
                                        on_message=self.__manage_websocket_message_local,\
                                        on_open=self.__manage_websocket_open,\
+                                       on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
             )
             self.__ws_public.on_open_vars = self.__ws_endpoint_on_open_vars_public
@@ -358,6 +363,7 @@ class OkxCcxwAuxClass():
                 websocket.WebSocketApp(__socket,\
                                        on_message=self.__manage_websocket_message_local,\
                                        on_open=self.__manage_websocket_open,\
+                                       on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
             )
             self.__ws_bussiness.on_open_vars = self.__ws_endpoint_on_open_vars_bussiness
@@ -367,7 +373,7 @@ class OkxCcxwAuxClass():
             __ws_temp = (
                 self.__ws_bussiness.run_forever(ping_interval=self.__ws_ping_interval,\
                                                 ping_timeout=self.__ws_ping_timeout,\
-                                                reconnect=320)
+                                                reconnect=30)
                 )
 
         except Exception as exc: # pylint: disable=broad-except

@@ -12,6 +12,7 @@ import time
 import datetime
 import queue
 import math
+import pprint # pylint: disable=unused-import
 import ccxw.ccxw_common_functions as ccf
 from ccxw.safe_thread_vars import DictSafeThread
 import ccxw
@@ -584,7 +585,7 @@ class BinanceCcxwAuxClass():
 
         return result
 
-    def manage_websocket_message_trades(self,data):
+    def manage_websocket_message_trades(self, data):
         """
         manage_websocket_message_trades
         ===============================
@@ -647,7 +648,7 @@ class BinanceCcxwAuxClass():
 
         return result
 
-    def manage_websocket_message_ticker(self,data):
+    def manage_websocket_message_ticker(self, data):
         """
         manage_websocket_message_ticker
         ===============================
@@ -729,7 +730,7 @@ class BinanceCcxwAuxClass():
 
         return result
 
-    def manage_websocket_message(self,ws,message_in): # pylint: disable=unused-argument
+    def manage_websocket_message(self, ws, message_in): # pylint: disable=unused-argument
         """
         manage_websocket_message
         ========================
@@ -743,6 +744,7 @@ class BinanceCcxwAuxClass():
         result = None
 
         try:
+
             if ccf.is_json(message_in):
                 __temp_data = json.loads(message_in)
 
@@ -793,8 +795,6 @@ class BinanceCcxwAuxClass():
                         result['data'] = __message_out
                         result['min_proc_time_ms'] = 0
                         result['max_proc_time_ms'] = 0
-
-
 
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))

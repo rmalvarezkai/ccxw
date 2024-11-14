@@ -12,6 +12,7 @@ import time
 import datetime
 import queue
 import math
+import threading
 import ccxw.ccxw_common_functions as ccf
 from ccxw.safe_thread_vars import DictSafeThread
 import ccxw
@@ -91,6 +92,14 @@ class BybitCcxwAuxClass():
         self.__ws_endpoint_on_auth_vars = None
         self.__ws_temp_data = DictSafeThread()
 
+        self.__stop_flag = False
+        self.__stop_flag_lock = threading.Lock()
+
+        self.__ping_thread = None
+
+        self.__ws = None
+        self.__ws_lock = threading.Lock()
+
         if not self.__check_streams_struct(streams):
             raise ValueError('The streams struct is not valid' + str(streams))
 
@@ -100,7 +109,36 @@ class BybitCcxwAuxClass():
                              + ' of streams.')
 
     def __del__(self):
-        pass
+
+        if not self.__stop_flag:
+            self.stop()
+
+    def start(self):
+        """
+        start
+        =====
+        """
+
+        with self.__stop_flag_lock:
+            self.__stop_flag = False
+
+        self.__ping_thread = threading.Thread(target=self.__thread_ping,\
+                                              name='ccxw_bybit_ping_thread')
+
+        self.__ping_thread.start()
+
+
+    def stop(self):
+        """
+        stop
+        ====
+        """
+
+        with self.__stop_flag_lock:
+            self.__stop_flag = True
+
+        if self.__ping_thread is not None:
+            self.__ping_thread.join(45)
 
     def __check_streams_struct(self, streams):
         """
@@ -458,6 +496,60 @@ class BybitCcxwAuxClass():
 
         return result
 
+    def __send_ping(self, local_ws):
+        result = False
+
+        __local_stop = True
+
+        with self.__stop_flag_lock:
+            __local_stop = self.__stop_flag
+
+        if not __local_stop and local_ws is not None:
+            __id = ccf.random_string(9) + str(round(time.time() * 1000000))
+            __req_ping = {
+                'req_id': __id,
+                'op': 'ping'
+            }
+
+            __req_ping = json.dumps(__req_ping, sort_keys=False)
+            local_ws.send(__req_ping)
+
+        return result
+
+    def __thread_ping(self):
+
+        __local_stop = False
+        __local_con_id = None
+        __last_ping_time = 0
+        __sleep_time = 0
+        __ping_interval = 20
+        __local_ws = None
+
+        while not __local_stop:
+
+            if __local_ws is not None:
+                self.__send_ping(__local_ws)
+                __sleep_time = __ping_interval - abs(time.time() - __last_ping_time)
+                __last_ping_time = time.time()
+
+                if __sleep_time <= 0:
+                    __sleep_time = 1
+            else:
+                __sleep_time = __ping_interval
+
+            __sleep_time -= 1
+
+            if __sleep_time <= 0:
+                __sleep_time = 1
+
+            time.sleep(__sleep_time)
+
+            with self.__ws_lock:
+                __local_ws = self.__ws
+
+            with self.__stop_flag_lock:
+                __local_stop = self.__stop_flag
+
     def __init_order_book_data(self, temp_data):
 
         result = False
@@ -746,7 +838,7 @@ class BybitCcxwAuxClass():
 
         return result
 
-    def manage_websocket_message(self,ws,message_in): # pylint: disable=unused-argument
+    def manage_websocket_message(self, ws, message_in): # pylint: disable=unused-argument
         """
         manage_websocket_message
         ========================
@@ -761,6 +853,8 @@ class BybitCcxwAuxClass():
         result = None
 
         try:
+            with self.__ws_lock:
+                self.__ws = ws
 
             if ccf.is_json(message_in):
                 __temp_data = json.loads(message_in)
@@ -781,6 +875,13 @@ class BybitCcxwAuxClass():
                             __endpoint = 'trades'
                         elif __tmp_endpoint == 'tickers':
                             __endpoint = 'ticker'
+                    elif 'ret_msg' in __temp_data\
+                        and 'op' in __temp_data\
+                        and __temp_data['ret_msg'] is not None\
+                        and __temp_data['op'] is not None\
+                        and __temp_data['ret_msg'] == 'pong'\
+                        and __temp_data['op'] == 'ping':
+                        __endpoint = 'ping'
 
                 if __endpoint == 'order_book':
                     __message_out = self.manage_websocket_message_order_book(__temp_data)

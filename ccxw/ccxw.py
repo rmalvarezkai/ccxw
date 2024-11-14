@@ -443,6 +443,7 @@ class Ccxw():
             self.__ws = (
                 websocket.WebSocketApp(socket, on_message=self.__manage_websocket_message,\
                                        on_open=self.__manage_websocket_open,\
+                                       on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
             )
             result = True
@@ -453,7 +454,8 @@ class Ccxw():
         self.__ws_ended = False
         __ws_temp = (
             self.__ws.run_forever(ping_interval=self.__ws_ping_interval,\
-                                  ping_timeout=self.__ws_ping_timeout, reconnect=320)
+                                  ping_timeout=self.__ws_ping_timeout,\
+                                  reconnect=140)
             )
 
         self.__ws_ended = True
@@ -503,7 +505,20 @@ class Ccxw():
 
         return result
 
-    def __manage_websocket_close(self,ws,close_status_code,close_msg):
+    def __manage_websocket_reconnect(self, ws):
+        """
+        websocket.WebSocketApp on_reconnect function.
+        ========================================
+            Some exchange endpoints require send specific data when websocket is opened 
+                :param self: Ccxw instance.
+                :param ws: websocket.WebSocketApp instance.
+
+                :return None:
+        """
+        result = self.__manage_websocket_open(ws)
+        return result
+
+    def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
         """
         websocket.WebSocketApp on_close function.
         =========================================
@@ -516,13 +531,9 @@ class Ccxw():
                 :return None:
         """
 
-        __tmp_code = close_status_code
-        __tmp_msg = close_msg
-
         if ws is not None:
             self.__ws_ended = True
             time.sleep(5)
-
 
     def ws_on_error(self, ws,error):
         """

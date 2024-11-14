@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Ccxw - CryptoCurrency eXchange Websocket Library
 Kucoin auxiliary functions
@@ -7,12 +8,14 @@ Date: 2023-10-31
 """
 
 import os
+import threading
 import json
 import time
 import datetime
 import queue
 import math
 import copy
+import pprint # pylint: disable=unused-import
 
 import ccxw.ccxw_common_functions as ccf
 from ccxw.safe_thread_vars import DictSafeThread
@@ -62,6 +65,14 @@ class KucoinCcxwAuxClass():
         self.__exchange = os.path.basename(__file__)[:-3]
         self.__ws_streams = streams
         self.__testmode = testmode
+        self.__ws_conn_id = None
+        self.__ws_conn_id_lock = threading.Lock()
+        self.__ping_thread = None
+        self.__ws = None
+        self.__ws_lock = threading.Lock()
+
+        self.__stop_flag = False
+        self.__stop_flag_lock = threading.Lock()
 
         self.__exchange_info_cache = {}
         self.__exchange_info_cache['data'] = None
@@ -102,7 +113,35 @@ class KucoinCcxwAuxClass():
                              + ' of streams.')
 
     def __del__(self):
-        pass
+
+        if not self.__stop_flag:
+            self.stop()
+
+    def start(self):
+        """
+        start
+        =====
+        """
+
+        with self.__stop_flag_lock:
+            self.__stop_flag = False
+
+        self.__ping_thread = threading.Thread(target=self.__thread_ping,\
+                                              name='ccxw_kucoin_ping_thread')
+
+        self.__ping_thread.start()
+
+    def stop(self):
+        """
+        stop
+        ====
+        """
+
+        with self.__stop_flag_lock:
+            self.__stop_flag = True
+
+        if self.__ping_thread:
+            self.__ping_thread.join(45)
 
     def __check_streams_struct(self, streams):
         """
@@ -150,15 +189,7 @@ class KucoinCcxwAuxClass():
 
         return result
 
-    def get_websocket_url(self):
-        """
-        get_websocket_url
-        =================
-            This function set and return websocket URL.
-
-                :return str: Return websocket URL.
-        """
-
+    def __get_websocket_token_raw(self):
         result = None
 
         self.get_api_url()
@@ -174,9 +205,26 @@ class KucoinCcxwAuxClass():
                 __data_token_raw = ccf.file_get_contents_url(__url_token,'b',{})
 
         if __data_token_raw is not None and ccf.is_json(__data_token_raw):
-            __data_token = json.loads(__data_token_raw)
+            result = json.loads(__data_token_raw)
 
-            if isinstance(__data_token,dict) and 'data' in __data_token\
+        return result
+
+    def get_websocket_url(self):
+        """
+        get_websocket_url
+        =================
+            This function set and return websocket URL.
+
+                :return str: Return websocket URL.
+        """
+
+        result = None
+
+        __data_token = self.__get_websocket_token_raw()
+
+        if __data_token is not None:
+
+            if isinstance(__data_token, dict) and 'data' in __data_token\
                 and isinstance(__data_token['data'],dict):
                 __comp_0 = 'token' in __data_token['data']\
                     and isinstance(__data_token['data']['token'],str)\
@@ -529,6 +577,64 @@ class KucoinCcxwAuxClass():
 
         return result
 
+    def __send_ping(self):
+        result = False
+
+        __local_con_id = None
+
+        with self.__ws_conn_id_lock:
+            __local_con_id = self.__ws_conn_id
+
+        if __local_con_id is not None:
+            __id = ccf.random_string(9) + str(round(time.time() * 1000000))
+            __req_ping = {
+                'id': __id,
+                'type': 'ping'
+            }
+
+            __req_ping = json.dumps(__req_ping, sort_keys=False)
+
+            with self.__ws_lock:
+                self.__ws.send(__req_ping)
+
+        return result
+
+    def __thread_ping(self):
+
+        __local_stop = False
+        __local_con_id = None
+        __last_ping_time = 0
+        __sleep_time = 0
+
+        __token_time = 0
+        __token_time_limit = 1800
+
+        while not __local_stop:
+            if abs(time.time() - __token_time) >= __token_time_limit:
+                __token_data = self.__get_websocket_token_raw()
+                if __token_data is not None and isinstance(__token_data, dict):
+                    __token_time = time.time()
+
+            with self.__ws_conn_id_lock:
+                __local_con_id = self.__ws_conn_id_lock
+
+            if __local_con_id is not None:
+                self.__send_ping()
+                __sleep_time = self.ping_interval_ms - abs(time.time() - __last_ping_time)
+                __sleep_time -= 1
+                __last_ping_time = time.time()
+
+                if __sleep_time <= 0:
+                    __sleep_time = 1
+            else:
+                __sleep_time = self.ping_interval_ms
+
+            time.sleep(__sleep_time)
+
+
+            with self.__stop_flag_lock:
+                __local_stop = self.__stop_flag
+
     def manage_websocket_message_order_book(self, data):
         """
         manage_websocket_message_order_book
@@ -812,7 +918,7 @@ class KucoinCcxwAuxClass():
 
         return result
 
-    def manage_websocket_message(self,ws,message_in): # pylint: disable=unused-argument
+    def manage_websocket_message(self, ws, message_in): # pylint: disable=unused-argument
         """
         manage_websocket_message
         ========================
@@ -827,6 +933,9 @@ class KucoinCcxwAuxClass():
         result = None
 
         try:
+            with self.__ws_lock:
+                self.__ws = ws
+
             if ccf.is_json(message_in):
                 __temp_data = json.loads(message_in)
                 __proc_data = False
@@ -834,22 +943,32 @@ class KucoinCcxwAuxClass():
                 __endpoint = 'NONE'
 
                 if __temp_data is not None\
-                    and isinstance(__temp_data, dict)\
-                    and 'topic' in __temp_data\
-                    and __temp_data['topic'] is not None\
-                    and isinstance(__temp_data['topic'], str)\
-                    and len(__temp_data['topic']) > 0:
+                    and isinstance(__temp_data, dict):
+                    if 'topic' in __temp_data\
+                        and __temp_data['topic'] is not None\
+                        and isinstance(__temp_data['topic'], str)\
+                        and len(__temp_data['topic']) > 0:
 
-                    __tmp_endpoint = __temp_data['topic'].split(':')[0]
+                        __tmp_endpoint = __temp_data['topic'].split(':')[0]
 
-                    if __tmp_endpoint == '/market/level2':
-                        __endpoint = 'order_book'
-                    elif __tmp_endpoint == '/market/candles':
-                        __endpoint = 'kline'
-                    elif __tmp_endpoint == '/market/match':
-                        __endpoint = 'trades'
-                    elif __tmp_endpoint == '/market/ticker':
-                        __endpoint = 'ticker'
+                        if __tmp_endpoint == '/market/level2':
+                            __endpoint = 'order_book'
+                        elif __tmp_endpoint == '/market/candles':
+                            __endpoint = 'kline'
+                        elif __tmp_endpoint == '/market/match':
+                            __endpoint = 'trades'
+                        elif __tmp_endpoint == '/market/ticker':
+                            __endpoint = 'ticker'
+                    elif 'type' in __temp_data\
+                        and __temp_data['type'] is not None\
+                        and isinstance(__temp_data['type'], str)\
+                        and 'id' in __temp_data\
+                        and __temp_data['id'] is not None\
+                        and isinstance(__temp_data['id'], str):
+
+                        if __temp_data['type'] == 'welcome':
+                            with self.__ws_conn_id_lock:
+                                self.__ws_conn_id = __temp_data['id']
 
                 if __endpoint == 'order_book':
                     __message_out = self.manage_websocket_message_order_book(__temp_data)

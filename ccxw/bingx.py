@@ -312,6 +312,9 @@ class BingxCcxwAuxClass():
 
         return result
 
+    def __manage_websocket_reconnect(self, ws):
+        result = self.__manage_websocket_open(ws)
+        return result
 
     def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
         result = False
@@ -377,6 +380,7 @@ class BingxCcxwAuxClass():
                 websocket.WebSocketApp(__socket,\
                                        on_message=self.__manage_websocket_message_local,\
                                        on_open=self.__manage_websocket_open,\
+                                       on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
             )
 
@@ -388,7 +392,7 @@ class BingxCcxwAuxClass():
             __ws_temp = (
                 self.__ws_client.run_forever(ping_interval=self.__ws_ping_interval,\
                                              ping_timeout=self.__ws_ping_timeout,\
-                                             reconnect=320)
+                                             reconnect=30)
                 )
 
         except Exception as exc: # pylint: disable=broad-except
@@ -1127,83 +1131,95 @@ class BingxCcxwAuxClass():
                     __message_out = None
 
                     if __temp_data is not None\
-                        and isinstance(__temp_data, dict)\
-                        and 'code' in __temp_data\
-                        and 'data' in __temp_data\
-                        and 'dataType' in __temp_data\
-                        and 'success' in __temp_data\
-                        and __temp_data['success']:
+                        and isinstance(__temp_data, dict):
+                        if 'ping' in __temp_data\
+                            and 'time' in __temp_data\
+                            and __temp_data['ping'] is not None\
+                            and __temp_data['time'] is not None:
 
-                        __tmp_endpoint = 'NONE'
+                            __req_ping = {}
+                            __req_ping['pong'] = __temp_data['ping']
+                            __req_ping['time'] = __temp_data['time']
 
-                        if '@' in __temp_data['dataType']:
-                            __input_tmp = __temp_data['dataType'].split('@')
-                            if __input_tmp is not None\
-                                and isinstance(__input_tmp, list)\
-                                and len(__input_tmp) >=2:
-                                __symbol = __input_tmp[0]
-                                __tmp_endpoint = __input_tmp[1]
+                            __req_ping = json.dumps(__req_ping)
+                            ws.send(__req_ping)
 
-                        if __tmp_endpoint.startswith('depth'):
-                            __endpoint = 'order_book'
-                        elif __tmp_endpoint.startswith('kline') and '_' in __tmp_endpoint:
-                            __tmp_interval = __tmp_endpoint.split('_')
-                            if __tmp_interval is not None\
-                                and isinstance(__tmp_interval, list)\
-                                and len(__tmp_interval) >=2:
-                                __endpoint = 'kline'
-                                __interval = __tmp_interval[1]
-                        elif __tmp_endpoint.startswith('trades'):
-                            __endpoint = 'trades'
-                        elif __tmp_endpoint.startswith('ticker'):
-                            __endpoint = 'ticker'
+                        elif  'code' in __temp_data\
+                            and 'data' in __temp_data\
+                            and 'dataType' in __temp_data\
+                            and 'success' in __temp_data\
+                            and __temp_data['success']:
 
-                        if __endpoint == 'order_book':
-                            __message_out = (
-                                self.manage_websocket_message_order_book(__temp_data, __symbol)
-                            )
+                            __tmp_endpoint = 'NONE'
 
-                            if __message_out is not None:
+                            if '@' in __temp_data['dataType']:
+                                __input_tmp = __temp_data['dataType'].split('@')
+                                if __input_tmp is not None\
+                                    and isinstance(__input_tmp, list)\
+                                    and len(__input_tmp) >=2:
+                                    __symbol = __input_tmp[0]
+                                    __tmp_endpoint = __input_tmp[1]
 
-                                result = {}
-                                result['data'] = __message_out
-                                result['min_proc_time_ms'] = 0
-                                result['max_proc_time_ms'] = 0
+                            if __tmp_endpoint.startswith('depth'):
+                                __endpoint = 'order_book'
+                            elif __tmp_endpoint.startswith('kline') and '_' in __tmp_endpoint:
+                                __tmp_interval = __tmp_endpoint.split('_')
+                                if __tmp_interval is not None\
+                                    and isinstance(__tmp_interval, list)\
+                                    and len(__tmp_interval) >=2:
+                                    __endpoint = 'kline'
+                                    __interval = __tmp_interval[1]
+                            elif __tmp_endpoint.startswith('trades'):
+                                __endpoint = 'trades'
+                            elif __tmp_endpoint.startswith('ticker'):
+                                __endpoint = 'ticker'
 
-                        elif __endpoint == 'kline':
-                            __message_out = (
-                                self.manage_websocket_message_kline(__temp_data,\
-                                                                    __symbol,\
-                                                                    __interval)
-                            )
+                            if __endpoint == 'order_book':
+                                __message_out = (
+                                    self.manage_websocket_message_order_book(__temp_data, __symbol)
+                                )
 
-                            if __message_out is not None:
-                                result = {}
-                                result['data'] = __message_out
-                                result['min_proc_time_ms'] = 0
-                                result['max_proc_time_ms'] = 0
+                                if __message_out is not None:
 
-                        elif __endpoint == 'trades':
-                            __message_out = (
-                                self.manage_websocket_message_trades(__temp_data, __symbol)
-                            )
+                                    result = {}
+                                    result['data'] = __message_out
+                                    result['min_proc_time_ms'] = 0
+                                    result['max_proc_time_ms'] = 0
 
-                            if __message_out is not None:
-                                result = {}
-                                result['data'] = __message_out
-                                result['min_proc_time_ms'] = 0
-                                result['max_proc_time_ms'] = 0
+                            elif __endpoint == 'kline':
+                                __message_out = (
+                                    self.manage_websocket_message_kline(__temp_data,\
+                                                                        __symbol,\
+                                                                        __interval)
+                                )
 
-                        elif __endpoint == 'ticker':
-                            __message_out = (
-                                self.manage_websocket_message_ticker(__temp_data, __symbol)
-                            )
+                                if __message_out is not None:
+                                    result = {}
+                                    result['data'] = __message_out
+                                    result['min_proc_time_ms'] = 0
+                                    result['max_proc_time_ms'] = 0
 
-                            if __message_out is not None:
-                                result = {}
-                                result['data'] = __message_out
-                                result['min_proc_time_ms'] = 0
-                                result['max_proc_time_ms'] = 0
+                            elif __endpoint == 'trades':
+                                __message_out = (
+                                    self.manage_websocket_message_trades(__temp_data, __symbol)
+                                )
+
+                                if __message_out is not None:
+                                    result = {}
+                                    result['data'] = __message_out
+                                    result['min_proc_time_ms'] = 0
+                                    result['max_proc_time_ms'] = 0
+
+                            elif __endpoint == 'ticker':
+                                __message_out = (
+                                    self.manage_websocket_message_ticker(__temp_data, __symbol)
+                                )
+
+                                if __message_out is not None:
+                                    result = {}
+                                    result['data'] = __message_out
+                                    result['min_proc_time_ms'] = 0
+                                    result['max_proc_time_ms'] = 0
 
         except Exception as exc: # pylint: disable=broad-except
             print('EXCEPTION: ' + str(exc))

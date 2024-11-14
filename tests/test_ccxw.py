@@ -350,6 +350,9 @@ class TestCcxw(unittest.TestCase):
 
         __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
 
+        __data_struct_res = False
+        error_msg = ''
+
         for stream in self.__streams:
             if stream is not None\
                 and isinstance(stream, dict)\
@@ -368,12 +371,12 @@ class TestCcxw(unittest.TestCase):
                 error_msg = '\nexchange: ' + str(__exchg) + '\n' +\
                     'endpoint: ' + str(endpoint) + '\n' +\
                     'interval: ' + str(interval) + '\n' +\
-                    pprint.pformat(__data,sort_dicts=False)
+                    pprint.pformat(__data, sort_dicts=False)
 
                 __data_struct_res = self.__check_data_structure_local(endpoint, __data)
 
         if self.__debug:
-            self.assertTrue(__data_struct_res,error_msg)
+            self.assertTrue(__data_struct_res, error_msg)
         else:
             self.assertTrue(__data_struct_res)
 
@@ -386,6 +389,9 @@ class TestCcxw(unittest.TestCase):
 
         __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
 
+        __data_struct_res = False
+        error_msg = ''
+
         for stream in self.__streams:
             if stream is not None\
                 and isinstance(stream, dict)\
@@ -404,12 +410,12 @@ class TestCcxw(unittest.TestCase):
                 error_msg = '\nexchange: ' + str(__exchg) + '\n' +\
                     'endpoint: ' + str(endpoint) + '\n' +\
                     'interval: ' + str(interval) + '\n' +\
-                    pprint.pformat(__data,sort_dicts=False)
+                    pprint.pformat(__data, sort_dicts=False)
 
                 __data_struct_res = self.__check_data_structure_local(endpoint, __data)
 
         if self.__debug:
-            self.assertTrue(__data_struct_res,error_msg)
+            self.assertTrue(__data_struct_res, error_msg)
         else:
             self.assertTrue(__data_struct_res)
 
@@ -422,6 +428,9 @@ class TestCcxw(unittest.TestCase):
 
         __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
 
+        __data_struct_res = False
+        error_msg = ''
+
         for stream in self.__streams:
             if stream is not None\
                 and isinstance(stream, dict)\
@@ -440,12 +449,12 @@ class TestCcxw(unittest.TestCase):
                 error_msg = '\nexchange: ' + str(__exchg) + '\n' +\
                     'endpoint: ' + str(endpoint) + '\n' +\
                     'interval: ' + str(interval) + '\n' +\
-                    pprint.pformat(__data,sort_dicts=False)
+                    pprint.pformat(__data, sort_dicts=False)
 
                 __data_struct_res = self.__check_data_structure_local(endpoint, __data)
 
         if self.__debug:
-            self.assertTrue(__data_struct_res,error_msg)
+            self.assertTrue(__data_struct_res, error_msg)
         else:
             self.assertTrue(__data_struct_res)
 
@@ -458,6 +467,9 @@ class TestCcxw(unittest.TestCase):
 
         __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
 
+        __data_struct_res = False
+        error_msg = ''
+
         for stream in self.__streams:
             if stream is not None\
                 and isinstance(stream, dict)\
@@ -481,7 +493,7 @@ class TestCcxw(unittest.TestCase):
                 __data_struct_res = self.__check_data_structure_local(endpoint, __data)
 
         if self.__debug:
-            self.assertTrue(__data_struct_res,error_msg)
+            self.assertTrue(__data_struct_res, error_msg)
         else:
             self.assertTrue(__data_struct_res)
 
@@ -494,6 +506,9 @@ class TestCcxw(unittest.TestCase):
 
         __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
 
+        __data_struct_res = False
+        error_msg = ''
+
         for stream in self.__streams:
             if stream is not None\
                 and isinstance(stream, dict)\
@@ -517,7 +532,7 @@ class TestCcxw(unittest.TestCase):
                 __data_struct_res = self.__check_data_structure_local(endpoint, __data)
 
         if self.__debug:
-            self.assertTrue(__data_struct_res,error_msg)
+            self.assertTrue(__data_struct_res, error_msg)
         else:
             self.assertTrue(__data_struct_res)
 
