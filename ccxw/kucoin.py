@@ -117,6 +117,14 @@ class KucoinCcxwAuxClass():
         if not self.__stop_flag:
             self.stop()
 
+    def reset_ws_temp_data(self):
+        """
+        reset_ws_temp_data
+        ==================
+        """
+        for key_d in self.__ws_temp_data:
+            self.__ws_temp_data[key_d] = None
+
     def start(self):
         """
         start
@@ -497,7 +505,7 @@ class KucoinCcxwAuxClass():
             if stream['endpoint'] == 'order_book':
                 result = True
 
-                __topic_open['topic'] = '/market/level2:'\
+                __topic_open['topic'] = '/spotMarket/level2Depth50:'\
                     + stream['symbol'].replace("/","-").upper()
                 __topic_close['topic'] = __topic_open['topic']
 
@@ -533,47 +541,6 @@ class KucoinCcxwAuxClass():
         result['ws_endpoint_on_close_vars'] = self.__ws_endpoint_on_close_vars
         result['ws_ping_interval'] = self.ping_interval_ms
         result['ws_ping_timeout'] = self.ping_timeout_ms
-
-        return result
-
-    def __init_order_book_data(self, temp_data):
-
-        result = False
-        __data = None
-
-        if 'symbol' in temp_data\
-            and temp_data['symbol'] is not None\
-            and isinstance(temp_data['symbol'], str):
-            __symbol = temp_data['symbol']
-
-            __url_dest = self.__url_api + '/api/v1/market/orderbook/level2_100?symbol='\
-                + str(__symbol).replace("/","-").upper()
-
-
-            __data = ccf.file_get_contents_url(__url_dest)
-
-            if __data is not None and ccf.is_json(__data):
-                __data = json.loads(__data)
-
-                if __data is not None and isinstance(__data, dict)\
-                    and 'code' in __data and 'data' in __data\
-                    and __data['code'] == '200000':
-                    __stream_index = self.get_stream_index('order_book', __symbol)
-                    self.__ws_temp_data[__stream_index] = None
-                    self.__ws_temp_data[__stream_index] = {}
-                    self.__ws_temp_data[__stream_index]['endpoint'] = 'order_book'
-                    self.__ws_temp_data[__stream_index]['exchange'] = self.__exchange
-                    self.__ws_temp_data[__stream_index]['symbol'] = __symbol
-                    self.__ws_temp_data[__stream_index]['interval'] = None
-                    self.__ws_temp_data[__stream_index]['last_update_id'] = (
-                        int(__data['data']['sequence'])
-                    )
-                    self.__ws_temp_data[__stream_index]['diff_update_id'] = 0
-                    self.__ws_temp_data[__stream_index]['bids'] = __data['data']['bids']
-                    self.__ws_temp_data[__stream_index]['asks'] = __data['data']['asks']
-                    self.__ws_temp_data[__stream_index]['type'] = 'snapshot'
-
-                    result = True
 
         return result
 
@@ -655,45 +622,41 @@ class KucoinCcxwAuxClass():
         result = None
 
         __temp_data = data
-        __proc_data = False
 
         if __temp_data is not None and isinstance(__temp_data,dict)\
             and 'type' in __temp_data and 'data' in __temp_data\
             and isinstance(__temp_data['data'],dict):
             if __temp_data['type'] == 'message':
-                __symbol = __temp_data['topic'].split(':')[1]
+                __symbol = None
+                __tmp_split = __temp_data['topic'].split(':')
+
+                if __tmp_split is not None\
+                    and isinstance(__tmp_split, list)\
+                    and len(__tmp_split) > 1:
+                    __symbol = __tmp_split[1]
                 __stream_index = self.get_stream_index('order_book', __symbol)
 
-                if 'changes' in __temp_data['data']\
-                    and isinstance(__temp_data['data']['changes'],dict):
-                    if self.__ws_temp_data[__stream_index] is None:
-                        if self.__init_order_book_data(__temp_data['data'])\
-                            and self.__manage_websocket_diff_data(__temp_data['data']):
-                            __proc_data = True
-                    elif self.__manage_websocket_diff_data(__temp_data['data']):
-                        __proc_data = True
+                if __symbol is not None\
+                    and 'asks' in __temp_data['data']\
+                    and 'bids' in __temp_data['data']\
+                    and 'timestamp' in __temp_data['data']:
+                    __bids = __temp_data['data']['bids']
+                    __asks = __temp_data['data']['asks']
+                    # __asks.reverse()
 
-                if __proc_data:
                     __message_out = None
                     __message_out = {}
                     __message_out['endpoint'] = 'order_book'
                     __message_out['exchange'] = self.__exchange
                     __message_out['symbol'] = __symbol
                     __message_out['interval'] = None
-                    __message_out['last_update_id'] = (
-                        self.__ws_temp_data[__stream_index]['last_update_id']
-                    )
-                    __message_out['diff_update_id'] = (
-                        self.__ws_temp_data[__stream_index]['diff_update_id']
-                    )
-                    __message_out['bids'] = (
-                        self.__ws_temp_data[__stream_index]['bids'][:self.__result_max_len]
-                    )
-                    __message_out['asks'] = (
-                        self.__ws_temp_data[__stream_index]['asks'][:self.__result_max_len]
-                    )
-                    __message_out['type'] = self.__ws_temp_data[__stream_index]['type']
-                    __current_datetime = datetime.datetime.utcnow()
+                    __message_out['last_update_id'] = __temp_data['data']['timestamp']
+                    __message_out['diff_update_id'] = 0
+
+                    __message_out['bids'] = __bids[:self.__result_max_len]
+                    __message_out['asks'] = __asks[:self.__result_max_len]
+                    __message_out['type'] = 'snapshot'
+                    __current_datetime = datetime.datetime.now(datetime.timezone.utc)
                     __current_timestamp = __current_datetime.strftime("%s.%f")
                     __current_datetime = (
                         __current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -702,6 +665,7 @@ class KucoinCcxwAuxClass():
                     __message_out['datetime'] = __current_datetime
 
                     result = __message_out
+                    self.__ws_temp_data[__stream_index] = __temp_data
 
         return result
 
@@ -956,9 +920,14 @@ class KucoinCcxwAuxClass():
                         and isinstance(__temp_data['topic'], str)\
                         and len(__temp_data['topic']) > 0:
 
-                        __tmp_endpoint = __temp_data['topic'].split(':')[0]
+                        __tmp_endpoint = 'NONE'
+                        __tmp_split = __temp_data['topic'].split(':')
 
-                        if __tmp_endpoint == '/market/level2':
+                        if __tmp_split is not None and isinstance(__tmp_split, list):
+                            if len(__tmp_split) > 0:
+                                __tmp_endpoint = __temp_data['topic'].split(':')[0]
+
+                        if __tmp_endpoint == '/spotMarket/level2Depth50':
                             __endpoint = 'order_book'
                         elif __tmp_endpoint == '/market/candles':
                             __endpoint = 'kline'
@@ -1011,77 +980,5 @@ class KucoinCcxwAuxClass():
 
         except Exception as exc: # pylint: disable=broad-except
             print(str(exc))
-
-        return result
-
-    def __manage_websocket_diff_data(self, diff_data):
-
-        result = False
-
-        __symbol = None
-        __stream_index = None
-
-        current_data = None
-        current_data_seq = 0
-
-        if 'symbol' in diff_data\
-            and diff_data['symbol'] is not None\
-            and isinstance(diff_data['symbol'], str):
-            __symbol = diff_data['symbol']
-            __stream_index = self.get_stream_index('order_book', __symbol)
-
-            current_data = self.__ws_temp_data[__stream_index]
-            current_data_seq = current_data['last_update_id']
-
-        if isinstance(diff_data['changes'],dict) and 'bids' in diff_data['changes']\
-            and 'asks' in diff_data['changes'] and isinstance(diff_data['changes']['bids'],list)\
-            and isinstance(diff_data['changes']['asks'],list) and __symbol is not None\
-            and __stream_index is not None and current_data is not None:
-            __temp_bids_d = {}
-            __temp_asks_d = {}
-            __temp_bids_l = []
-            __temp_asks_l = []
-
-            __key = 'bids'
-            for i in range(0,len(current_data[__key])):
-                __temp_bids_d[current_data[__key][i][0]] = current_data[__key][i][1]
-
-            for i in range(0,len(diff_data['changes'][__key])):
-                if int(diff_data['changes'][__key][i][2]) > current_data_seq:
-                    if float(diff_data['changes'][__key][i][1]) == 0:
-                        n_t = __temp_bids_d.pop(diff_data['changes'][__key][i][0],None) # pylint: disable=unused-variable
-                    else:
-                        __temp_bids_d[diff_data['changes'][__key][i][0]] = \
-                            diff_data['changes'][__key][i][1]
-
-            for i,j in __temp_bids_d.items():
-                __temp_bids_l.append([i,j])
-
-            __temp_bids = sorted(__temp_bids_l, key=lambda value: float(value[0]), reverse=True)
-
-            __key = 'asks'
-            for i in range(0,len(current_data[__key])):
-                __temp_asks_d[current_data[__key][i][0]] = current_data[__key][i][1]
-
-            for i in range(0,len(diff_data['changes'][__key])):
-                if int(diff_data['changes'][__key][i][2]) > current_data_seq:
-                    if float(diff_data['changes'][__key][i][1]) == 0:
-                        n_t = __temp_asks_d.pop(diff_data['changes'][__key][i][0],None)
-                    else:
-                        __temp_asks_d[diff_data['changes'][__key][i][0]] = \
-                            diff_data['changes'][__key][i][1]
-
-            for i,j in __temp_asks_d.items():
-                __temp_asks_l.append([i,j])
-
-            __temp_asks = sorted(__temp_asks_l, key=lambda value: float(value[0]), reverse=False)
-
-            current_data['bids'] = __temp_bids
-            current_data['asks'] = __temp_asks
-            current_data['last_update_id'] = int(diff_data['sequenceEnd'])
-            current_data['diff_update_id'] = current_data['last_update_id'] - current_data_seq
-            current_data['type'] = 'update'
-            self.__ws_temp_data[__stream_index] = current_data
-            result = True
 
         return result

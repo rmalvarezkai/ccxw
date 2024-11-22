@@ -176,6 +176,14 @@ class BingxCcxwAuxClass():
 
         return result
 
+    def reset_ws_temp_data(self):
+        """
+        reset_ws_temp_data
+        ==================
+        """
+        for key_d in self.__ws_temp_data:
+            self.__ws_temp_data[key_d] = None
+
     def __set_ws_server(self):
         result = False
 
@@ -862,7 +870,7 @@ class BingxCcxwAuxClass():
             __message_out['bids'] = __bids[:self.__result_max_len]
             __message_out['asks'] = __asks[:self.__result_max_len]
             __message_out['type'] = 'snapshot'
-            __current_datetime = datetime.datetime.utcnow()
+            __current_datetime = datetime.datetime.now(datetime.timezone.utc)
             __current_timestamp = __current_datetime.strftime("%s.%f")
             __current_datetime = __current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
             __message_out['timestamp'] = __current_timestamp

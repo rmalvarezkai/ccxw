@@ -11,6 +11,13 @@ import glob
 import sys
 import importlib.metadata
 
+from .ccxw import Ccxw
+from .binance import BinanceCcxwAuxClass
+from .bingx import BingxCcxwAuxClass
+from .bybit import BybitCcxwAuxClass
+from .kucoin import KucoinCcxwAuxClass
+from .okx import OkxCcxwAuxClass
+
 ccxw_metadata = importlib.metadata.metadata('ccxw')
 
 __title__ = ccxw_metadata['Name']
@@ -31,15 +38,3 @@ if isinstance(sys.path,list):
 for f in modules:
     if isfile(f) and not f.endswith('__init__.py'):
         __all__.append(basename(f)[:-3])
-
-from .ccxw import Ccxw
-from .binance import BinanceCcxwAuxClass
-from .bingx import BingxCcxwAuxClass
-from .bybit import BybitCcxwAuxClass
-from .kucoin import KucoinCcxwAuxClass
-from .okx import OkxCcxwAuxClass
-
-
-
-
-

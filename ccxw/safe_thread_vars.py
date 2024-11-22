@@ -28,7 +28,7 @@ class DictSafeThread():
                 raise ValueError('Input data is not None or dict')
 
     def __del__(self):
-        pass
+        self._data = None
 
     def __enter__(self):
         self.__lock.__enter__()

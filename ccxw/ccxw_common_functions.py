@@ -112,6 +112,32 @@ def file_get_contents_url(url,mode="b",post_data=None,headers=None,timeout=9):
 
     return result
 
+def file_put_contents(filename, data, mode_in=""):
+    """
+    file_put_contents
+    =================
+    This function writes the given data to the specified file.
+
+    :param filename: str, the file path where data will be written.
+    :param data: str, the content to write into the file.
+    :param mode_in: str, optional, 'b' for binary mode. Defaults to "".
+
+    :return: bool, returns True if the operation was successful, False otherwise.
+    """
+    result = False
+    mode = "w"
+
+    if len(mode_in) > 0:
+        mode = mode_in
+    try:
+        f = open(filename, mode, encoding='utf-8')
+        result = f.write(data)
+        f.close()
+    except Exception: # pylint: disable=broad-except
+        result = False
+
+    return result
+
 def is_port_free(port, host='localhost'):
     """
     is_port_free

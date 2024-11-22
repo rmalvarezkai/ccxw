@@ -98,6 +98,14 @@ class BinanceCcxwAuxClass():
                              + ' not alowed more than ' + str(__exchange_limit_streams)\
                              + ' of streams.')
 
+    def reset_ws_temp_data(self):
+        """
+        reset_ws_temp_data
+        ==================
+        """
+        for key_d in self.__ws_temp_data:
+            self.__ws_temp_data[key_d] = None
+
     def __del__(self):
         pass
 

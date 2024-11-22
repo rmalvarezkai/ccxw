@@ -17,8 +17,9 @@ import base64
 import random
 import gzip
 import humanize
-
 import websocket
+import ccxw.ccxw_common_functions as ccf
+
 from .binance import BinanceCcxwAuxClass
 from .bybit import BybitCcxwAuxClass
 from .bingx import BingxCcxwAuxClass
@@ -531,9 +532,17 @@ class Ccxw():
                 :return None:
         """
 
-        if ws is not None:
+        if close_status_code is None and close_msg is None:
             self.__ws_ended = True
-            time.sleep(5)
+        else:
+            self.__auxiliary_class.reset_ws_temp_data()
+            ### BORRAR INI
+            __close_message = f'CLOSE WS: {self.__exchange}, {close_status_code}, {close_msg}\n'
+            __tmp_file = '/tmp/ccxw-close-ws.txt'
+            ccf.file_put_contents(__tmp_file, __close_message, 'a+')
+            ### BORRAR END
+
+        time.sleep(5)
 
     def ws_on_error(self, ws,error):
         """
