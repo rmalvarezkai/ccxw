@@ -642,7 +642,6 @@ class KucoinCcxwAuxClass():
                     and 'timestamp' in __temp_data['data']:
                     __bids = __temp_data['data']['bids']
                     __asks = __temp_data['data']['asks']
-                    # __asks.reverse()
 
                     __message_out = None
                     __message_out = {}
