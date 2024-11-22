@@ -625,7 +625,7 @@ class BybitCcxwAuxClass():
                 self.__ws_temp_data[__stream_index]['data']['a'][:self.__result_max_len]
             )
             __message_out['type'] = __data_type
-            __current_datetime = datetime.datetime.utcnow()
+            __current_datetime = datetime.datetime.now(datetime.timezone.utc)
             __current_timestamp = __current_datetime.strftime("%s.%f")
             __current_datetime = __current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
             __message_out['timestamp'] = __current_timestamp

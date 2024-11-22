@@ -28,8 +28,7 @@ def main(argv): # pylint: disable=unused-argument
     """
     result = 0
 
-    __exchanges = ['kucoin', 'binance', 'bybit', 'okx', 'bingx']
-    __exchanges = ['kucoin']
+    __exchanges = ['binance', 'bybit', 'okx', 'bingx', 'kucoin']
 
     __endpoint = 'order_book'
     __symbol = 'BTC/USDT'
@@ -45,7 +44,7 @@ def main(argv): # pylint: disable=unused-argument
         }
     ]
 
-    __total_num_data = 72
+    __total_num_data = 7200
     __diff_limit = 0.5
     __diff_limit_to_prt = __diff_limit
     __first_last_n = 5
