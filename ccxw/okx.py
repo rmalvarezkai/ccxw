@@ -14,6 +14,7 @@ import datetime
 import queue
 import math
 import random
+import pprint # pylint: disable=unused-import
 import threading
 import websocket
 import websocket_server
@@ -117,10 +118,14 @@ class OkxCcxwAuxClass():
 
         self.__thread_public = None
         self.__thread_bussiness = None
+        self.__thread_ping = None
+        self.__last_pong_time_public = 0
+        self.__last_pong_time_bussiness = 0
 
         websocket.enableTrace(self.__debug)
 
         self.__is_stopped = False
+        self.__lock_stopped = threading.Lock()
 
         if not self.__check_streams_struct(streams):
             raise ValueError('The streams struct is not valid' + str(streams))
@@ -140,8 +145,9 @@ class OkxCcxwAuxClass():
 
     def __del__(self):
 
-        if not self.__is_stopped:
-            self.stop()
+        with self.__lock_stopped:
+            if not self.__is_stopped:
+                self.stop()
 
     def start(self):
         """
@@ -151,7 +157,9 @@ class OkxCcxwAuxClass():
             :param self: OkxAuxClass instance.
         """
 
-        self.__is_stopped = False
+        with self.__lock_stopped:
+            self.__is_stopped = False
+
         self.__start_ws_server()
         time.sleep(1)
         self.__start_ws_clients()
@@ -163,7 +171,9 @@ class OkxCcxwAuxClass():
 
             :param self: OkxAuxClass instance.
         """
-        self.__is_stopped = True
+        with self.__lock_stopped:
+            self.__is_stopped = True
+
         self.__stop_ws_clients()
 
         time.sleep(5)
@@ -293,7 +303,7 @@ class OkxCcxwAuxClass():
 
         return result
 
-    def __manage_websocket_message_local(self, ws, message): # pylint: disable=unused-argument
+    def __manage_websocket_message_local_public(self, ws, message): # pylint: disable=unused-argument
 
         if self.__ws_server is not None:
             if message is not None and ccf.is_json(message):
@@ -302,16 +312,49 @@ class OkxCcxwAuxClass():
                     # pprint.pprint(__message_out, sort_dicts=False)
                     self.__ws_server.send_message_to_all(message)
 
+            elif message is not None and isinstance(message, str):
+                if message.lower() == 'pong':
+                    with self.__lock_stopped:
+                        self.__last_pong_time_public = time.time()
+
+    def __manage_websocket_message_local_bussiness(self, ws, message): # pylint: disable=unused-argument
+
+        if self.__ws_server is not None:
+            if message is not None and ccf.is_json(message):
+                with self.__lock:
+                    # __message_out = json.loads(message)
+                    # pprint.pprint(__message_out, sort_dicts=False)
+                    self.__ws_server.send_message_to_all(message)
+
+            elif message is not None and isinstance(message, str):
+                if message.lower() == 'pong':
+                    with self.__lock_stopped:
+                        self.__last_pong_time_bussiness = time.time()
+
     def __start_ws_clients(self):
-        self.__is_stopped = False
+        with self.__lock_stopped:
+            self.__is_stopped = False
+
         self.__thread_public = threading.Thread(target=self.__start_ws_client_public)
         self.__thread_public.start()
 
         self.__thread_bussiness = threading.Thread(target=self.__start_ws_client_bussiness)
         self.__thread_bussiness.start()
 
+        self.__thread_ping = threading.Thread(target=self.__start_ping_thread)
+        self.__thread_ping.start()
+
     def __stop_ws_clients(self):
-        self.__is_stopped = True
+        with self.__lock_stopped:
+            self.__is_stopped = True
+
+        if self.__thread_ping is not None\
+            and threading.current_thread() is not self.__thread_ping\
+            and self.__thread_ping.is_alive():
+            try:
+                self.__thread_ping.join(45)
+            except Exception: # pylint: disable=broad-except
+                pass
 
         self.__ws_public.close()
         self.__ws_bussiness.close()
@@ -334,6 +377,51 @@ class OkxCcxwAuxClass():
             except Exception: # pylint: disable=broad-except
                 pass
 
+    def __start_ping_thread(self):
+        result = False
+
+        __run_ping = True
+
+        __pong_time_limit = 30
+
+        __last_pong_public = 0
+        __last_pong_bussiness = 0
+
+        __to_reconnect_public = False # Not used for now
+        __to_reconnect_bussiness = False # Not used for now
+
+        time.sleep(9)
+
+        while __run_ping:
+            __last_pong_public = 0
+            __last_pong_bussiness = 0
+
+            with self.__lock_stopped:
+                __run_ping = not self.__is_stopped
+
+            if __run_ping:
+                __current_time_public = time.time()
+                __current_time_bussiness = time.time()
+                if self.__ws_public is not None:
+                    self.__ws_public.send('ping')
+                    __current_time_public = time.time()
+                if self.__ws_bussiness is not None:
+                    self.__ws_bussiness.send('ping')
+                    __current_time_bussiness = time.time()
+
+                time.sleep(25)
+                with self.__lock_stopped:
+                    __last_pong_public = self.__last_pong_time_public
+                    __last_pong_bussiness = self.__last_pong_time_bussiness
+
+                if (__last_pong_public - __current_time_public) > __pong_time_limit:
+                    __to_reconnect_public = True
+
+                if (__last_pong_bussiness - __current_time_bussiness) > __pong_time_limit:
+                    __to_reconnect_bussiness = True
+
+        return result
+
     def __start_ws_client_public(self):
         result = False
         __socket = self.__ws_url + self.__ws_endpoint_url_public
@@ -341,7 +429,7 @@ class OkxCcxwAuxClass():
         try:
             self.__ws_public = (
                 websocket.WebSocketApp(__socket,\
-                                       on_message=self.__manage_websocket_message_local,\
+                                       on_message=self.__manage_websocket_message_local_public,\
                                        on_open=self.__manage_websocket_open,\
                                        on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
@@ -353,7 +441,7 @@ class OkxCcxwAuxClass():
             __ws_temp = (
                 self.__ws_public.run_forever(ping_interval=self.__ws_ping_interval,\
                                              ping_timeout=self.__ws_ping_timeout,\
-                                             reconnect=320)
+                                             reconnect=50)
                 )
 
         except Exception as exc: # pylint: disable=broad-except
@@ -369,7 +457,7 @@ class OkxCcxwAuxClass():
         try:
             self.__ws_bussiness = (
                 websocket.WebSocketApp(__socket,\
-                                       on_message=self.__manage_websocket_message_local,\
+                                       on_message=self.__manage_websocket_message_local_bussiness,\
                                        on_open=self.__manage_websocket_open,\
                                        on_reconnect=self.__manage_websocket_reconnect,\
                                        on_close=self.__manage_websocket_close)
@@ -381,7 +469,7 @@ class OkxCcxwAuxClass():
             __ws_temp = (
                 self.__ws_bussiness.run_forever(ping_interval=self.__ws_ping_interval,\
                                                 ping_timeout=self.__ws_ping_timeout,\
-                                                reconnect=30)
+                                                reconnect=50)
                 )
 
         except Exception as exc: # pylint: disable=broad-except
@@ -780,11 +868,12 @@ class OkxCcxwAuxClass():
         __diff_update_id = 0
         __data_type = 'snapshot'
 
-        __symbol = self.get_unified_symbol_from_symbol(__temp_data['arg']['instId'])
-        __stream_index = self.get_stream_index('order_book', __symbol)
 
         if __temp_data is not None and isinstance(__temp_data, dict)\
             and 'action' in __temp_data:
+
+            __symbol = self.get_unified_symbol_from_symbol(__temp_data['arg']['instId'])
+            __stream_index = self.get_stream_index('order_book', __symbol)
 
             if __temp_data['action'] == 'snapshot':
                 if self.__init_order_book_data(__temp_data, __stream_index):

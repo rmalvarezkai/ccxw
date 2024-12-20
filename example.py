@@ -298,14 +298,14 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                         pprint.pprint(data0, sort_dicts=False)
                         print('')
                         print(str(i) + '    ' +\
-                            '====================================================================')
+                            '===================================================================')
                     time.sleep(1)
                     __db_size = wsm0.get_sqlite_memory_used()
-                    print('+++++++++++++++++++++++++++++++++++++++++++++++++++')
+                    print('++++++++++++++++++++++++++++++++++++++++++++++++++')
                     print(f'Sqlite database size: {__db_size}')
                     __db_size = wsm0.get_sqlite_memory_used_human_readable()
                     print(f'Sqlite database size: {__db_size}')
-                    print('+++++++++++++++++++++++++++++++++++++++++++++++++++')
+                    print('++++++++++++++++++++++++++++++++++++++++++++++++++')
 
                 time.sleep(time_sleep)
 
