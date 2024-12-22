@@ -536,6 +536,46 @@ class TestCcxw(unittest.TestCase):
         else:
             self.assertTrue(__data_struct_res)
 
+    def test_binanceus(self):
+        """
+        test_binanceus
+        ==============
+            Test case for binanceus exchange.
+        """
+
+        __exchg = sys._getframe().f_code.co_name[5:] # pylint: disable=protected-access
+
+        __data_struct_res = False
+        error_msg = ''
+
+        for stream in self.__streams:
+            if stream is not None\
+                and isinstance(stream, dict)\
+                and 'endpoint' in stream\
+                and 'symbol' in stream:
+
+                endpoint = stream['endpoint']
+                symbol = stream['symbol']
+                interval = 'none'
+
+                if 'interval' in stream:
+                    interval = stream['interval']
+
+                __data = self.__wsm[__exchg].get_current_data(endpoint, symbol, interval)
+
+                error_msg = '\nexchange: ' + str(__exchg) + '\n' +\
+                    'endpoint: ' + str(endpoint) + '\n' +\
+                    'interval: ' + str(interval) + '\n' +\
+                    pprint.pformat(__data, sort_dicts=False)
+
+                __data_struct_res = self.__check_data_structure_local(endpoint, __data)
+
+        if self.__debug:
+            self.assertTrue(__data_struct_res, error_msg)
+        else:
+            self.assertTrue(__data_struct_res)
+
+
 if __name__ == '__main__':
 
     unittest.main()

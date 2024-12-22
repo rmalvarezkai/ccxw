@@ -19,11 +19,12 @@ import gzip
 import humanize
 import websocket
 
-from .binance import BinanceCcxwAuxClass
-from .bybit import BybitCcxwAuxClass
-from .bingx import BingxCcxwAuxClass
-from .kucoin import KucoinCcxwAuxClass
-from .okx import OkxCcxwAuxClass
+from ccxw.binance import BinanceCcxwAuxClass
+from ccxw.bybit import BybitCcxwAuxClass
+from ccxw.bingx import BingxCcxwAuxClass
+from ccxw.kucoin import KucoinCcxwAuxClass
+from ccxw.okx import OkxCcxwAuxClass
+from ccxw.binanceus import BinanceusCcxwAuxClass
 
 class CcxwExchangeConfig:
     """
@@ -41,7 +42,8 @@ class CcxwExchangeConfig:
         'bybit': BybitCcxwAuxClass,
         'bingx': BingxCcxwAuxClass,
         'kucoin': KucoinCcxwAuxClass,
-        'okx': OkxCcxwAuxClass
+        'okx': OkxCcxwAuxClass,
+        'binanceus': BinanceusCcxwAuxClass
     }
 
 class Ccxw():
@@ -754,7 +756,7 @@ class Ccxw():
 
                 :return: list of supported exchanges.
         """
-        __suported_exchanges = ['binance' , 'bybit', 'kucoin', 'bingx','okx']
+        __suported_exchanges = ['binance', 'bybit', 'kucoin', 'bingx','okx', 'binanceus']
 
         return __suported_exchanges
 

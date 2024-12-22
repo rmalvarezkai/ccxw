@@ -230,6 +230,12 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #                 }
     #         ]
 
+    # streams = [
+    #                 {
+    #                     'endpoint': 'trades',
+    #                     'symbol': symbol_in
+    #                 }
+    #         ]
 
     wsm0 = None
 
@@ -256,7 +262,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #############################
     if proc_only_arguments: # pylint: disable=too-many-nested-blocks
         try:
-            pprint.pprint(streams)
+            pprint.pprint(streams, sort_dicts=False)
             wsm0 = Ccxw(exchange_out, streams, testmode=testmode,\
                             result_max_len=result_max_len,\
                             data_max_len=data_max_len, debug=debug)
@@ -280,7 +286,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
             # time.sleep(2.5)
 
             wsm0.start()
-            time.sleep(5)
+            time.sleep(50)
 
             for i in range(0,int(round(time_max / time_sleep))):
                 for stream in streams:
@@ -297,15 +303,18 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     if data0 is not None:
                         pprint.pprint(data0, sort_dicts=False)
                         print('')
-                        print(str(i) + '    ' +\
-                            '===================================================================')
+                        print(str(i) + '    ' + '=' * 80)
+                    # else:
+                    #     print('NO DATA')
+                    #     print(str(i) + '    ' + '=' * 80)
+
                     time.sleep(1)
-                    __db_size = wsm0.get_sqlite_memory_used()
-                    print('++++++++++++++++++++++++++++++++++++++++++++++++++')
-                    print(f'Sqlite database size: {__db_size}')
-                    __db_size = wsm0.get_sqlite_memory_used_human_readable()
-                    print(f'Sqlite database size: {__db_size}')
-                    print('++++++++++++++++++++++++++++++++++++++++++++++++++')
+                    # __db_size = wsm0.get_sqlite_memory_used()
+                    # print('++++++++++++++++++++++++++++++++++++++++++++++++++')
+                    # print(f'Sqlite database size: {__db_size}')
+                    # __db_size = wsm0.get_sqlite_memory_used_human_readable()
+                    # print(f'Sqlite database size: {__db_size}')
+                    # print('++++++++++++++++++++++++++++++++++++++++++++++++++')
 
                 time.sleep(time_sleep)
 

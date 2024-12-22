@@ -11,12 +11,13 @@ import glob
 import sys
 import importlib.metadata
 
-from .ccxw import Ccxw
-from .binance import BinanceCcxwAuxClass
-from .bingx import BingxCcxwAuxClass
-from .bybit import BybitCcxwAuxClass
-from .kucoin import KucoinCcxwAuxClass
-from .okx import OkxCcxwAuxClass
+from ccxw.ccxw import Ccxw
+from ccxw.binance import BinanceCcxwAuxClass
+from ccxw.bingx import BingxCcxwAuxClass
+from ccxw.bybit import BybitCcxwAuxClass
+from ccxw.kucoin import KucoinCcxwAuxClass
+from ccxw.okx import OkxCcxwAuxClass
+from ccxw.binanceus import BinanceusCcxwAuxClass
 
 ccxw_metadata = importlib.metadata.metadata('ccxw')
 
