@@ -126,7 +126,7 @@ class BingxCcxwAuxClass():
         self.__is_stopped = False
 
         if not self.__check_streams_struct(streams):
-            raise ValueError('The streams struct is not valid' + str(streams))
+            raise ValueError('The streams struct is not valid: ' + str(streams))
 
         if len(streams) > __exchange_limit_streams:
             raise ValueError('The exchange ' + str(self.__exchange)\
@@ -172,7 +172,8 @@ class BingxCcxwAuxClass():
                         and stream['interval'] is not None\
                         and isinstance(stream['interval'], str)\
                         and stream['interval'] in\
-                            ['1m']
+                            ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h',\
+                             '6h', '8h', '12h', '1d', '3d', '1w', '1mo']
 
         return result
 
@@ -741,6 +742,7 @@ class BingxCcxwAuxClass():
             __stream_index = self.get_stream_index(stream['endpoint'],\
                                                      stream['symbol'],\
                                                      interval=interval)
+
             self.__ws_temp_data[__stream_index] = None
 
         self.__ws_endpoint_on_open_vars_client['dataType'] = __ws_args_client
@@ -912,14 +914,12 @@ class BingxCcxwAuxClass():
                 and 'E' in __temp_data['data'] and 'K' in __temp_data['data']\
                 and isinstance(__temp_data['data']['K'],dict):
 
-                __out_interval = '1m' # Only available for 1 minute
-
                 __message_add = None
                 __message_add = {}
                 __message_add['endpoint'] = 'kline'
                 __message_add['exchange'] = self.__exchange
                 __message_add['symbol'] = symbol
-                __message_add['interval'] = __out_interval
+                __message_add['interval'] = interval
                 __message_add['last_update_id'] = __temp_data['data']['E']
                 __message_add['open_time'] = int(__temp_data['data']['K']['t'])
                 __message_add['close_time'] = int(__temp_data['data']['K']['T'])

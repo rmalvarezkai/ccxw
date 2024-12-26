@@ -12,9 +12,7 @@ import time
 import pprint
 
 from schema import Schema, And, Or
-
 from ccxw import Ccxw
-
 
 class TestCcxw(unittest.TestCase):
     """

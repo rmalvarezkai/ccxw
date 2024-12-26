@@ -222,13 +222,23 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #                     }
     #             ]
 
-    # streams = [
-    #                 {
-    #                     'endpoint': 'kline',
-    #                     'symbol': symbol_in,
-    #                     'interval': interval
-    #                 }
-    #         ]
+    streams = [
+                    {
+                        'endpoint': 'kline',
+                        'symbol': symbol_in,
+                        'interval': interval
+                    },
+                    {
+                        'endpoint': 'kline',
+                        'symbol': symbol_in,
+                        'interval': '5m'
+                    },
+                    {
+                        'endpoint': 'kline',
+                        'symbol': symbol_in,
+                        'interval': '15m'
+                    }
+            ]
 
     # streams = [
     #                 {
