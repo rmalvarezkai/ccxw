@@ -222,23 +222,23 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #                     }
     #             ]
 
-    streams = [
-                    {
-                        'endpoint': 'kline',
-                        'symbol': symbol_in,
-                        'interval': interval
-                    },
-                    {
-                        'endpoint': 'kline',
-                        'symbol': symbol_in,
-                        'interval': '5m'
-                    },
-                    {
-                        'endpoint': 'kline',
-                        'symbol': symbol_in,
-                        'interval': '15m'
-                    }
-            ]
+    # streams = [
+    #                 {
+    #                     'endpoint': 'kline',
+    #                     'symbol': symbol_in,
+    #                     'interval': interval
+    #                 },
+    #                 {
+    #                     'endpoint': 'kline',
+    #                     'symbol': symbol_in,
+    #                     'interval': '5m'
+    #                 },
+    #                 {
+    #                     'endpoint': 'kline',
+    #                     'symbol': symbol_in,
+    #                     'interval': '15m'
+    #                 }
+    #         ]
 
     # streams = [
     #                 {
@@ -325,6 +325,9 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     # __db_size = wsm0.get_sqlite_memory_used_human_readable()
                     # print(f'Sqlite database size: {__db_size}')
                     # print('++++++++++++++++++++++++++++++++++++++++++++++++++')
+                __ok_conn = wsm0.is_connections_ok()
+                print(f'ok_conn: {__ok_conn}')
+                print('+' * 100)
 
                 time.sleep(time_sleep)
 

@@ -328,6 +328,14 @@ class BingxCcxwAuxClass():
     def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
         result = False
 
+        def force_close():
+            try:
+                if ws.sock:  # Si el socket sigue abierto después del timeout
+                    ws.sock.close()
+                    print('Cerrando socket bingx')
+            except Exception: # pylint: disable=broad-except
+                pass
+
         if hasattr(ws, 'on_close_vars')\
             and ws.on_close_vars is not None\
             and isinstance(ws.on_close_vars, dict)\
@@ -358,6 +366,10 @@ class BingxCcxwAuxClass():
                         result = True
             except Exception: # pylint: disable=broad-except
                 result = False
+
+        timer = threading.Timer(40, force_close)
+        timer.start()
+        timer.join(45)
 
         return result
 

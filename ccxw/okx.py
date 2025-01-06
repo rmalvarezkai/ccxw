@@ -294,12 +294,24 @@ class OkxCcxwAuxClass():
     def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
         result = False
 
+        def force_close():
+            try:
+                if ws.sock:  # Si el socket sigue abierto después del timeout
+                    ws.sock.close()
+                    print('Cerrando socket okx')
+            except Exception: # pylint: disable=broad-except
+                pass
+
         if hasattr(ws, 'on_close_vars') and ws.on_close_vars is not None:
             try:
                 ws.send(ws.on_close_vars)
                 result = True
             except Exception: # pylint: disable=broad-except
                 result = False
+
+        timer = threading.Timer(40, force_close)
+        timer.start()
+        timer.join(45)
 
         return result
 
@@ -402,12 +414,15 @@ class OkxCcxwAuxClass():
             if __run_ping:
                 __current_time_public = time.time()
                 __current_time_bussiness = time.time()
-                if self.__ws_public is not None:
-                    self.__ws_public.send('ping')
-                    __current_time_public = time.time()
-                if self.__ws_bussiness is not None:
-                    self.__ws_bussiness.send('ping')
-                    __current_time_bussiness = time.time()
+                try:
+                    if self.__ws_public is not None:
+                        self.__ws_public.send('ping')
+                        __current_time_public = time.time()
+                    if self.__ws_bussiness is not None:
+                        self.__ws_bussiness.send('ping')
+                        __current_time_bussiness = time.time()
+                except Exception: # pylint: disable=broad-except
+                    pass
 
                 time.sleep(25)
                 with self.__lock_stopped:

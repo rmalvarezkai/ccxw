@@ -172,6 +172,7 @@ class Ccxw():
         self.min_proc_time_ms = None
         self.max_proc_time_ms = 0
         self.__trading_type = 'SPOT'
+        self.__start_time = 0
 
         self.__result_max_len = result_max_len
         self.__ws_ended = True
@@ -327,6 +328,7 @@ class Ccxw():
                 :return bool: Return True if starting OK or False 
         """
         result = False
+        self.__start_time = int(time.time())
 
         if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'start'):
             self.__auxiliary_class.start()
@@ -372,9 +374,6 @@ class Ccxw():
 
         time.sleep(2)
 
-        if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
-            self.__auxiliary_class.stop()
-
         self.__stop_launcher = True
 
         if not self.__ws_ended:
@@ -387,6 +386,9 @@ class Ccxw():
         while not self.__ws_ended and __time_counter <= __time_limit:
             __time_counter = __time_counter + 1
             time.sleep(1)
+
+        if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
+            self.__auxiliary_class.stop()
 
         if not self.__ws_ended:
             try:
@@ -402,6 +404,7 @@ class Ccxw():
 
         # print('ENTRE: 8888')
         # pprint.pprint(str(self.__auxiliary_class))
+        self.__start_time = 0
 
         return result
 
@@ -520,7 +523,7 @@ class Ccxw():
         result = self.__manage_websocket_open(ws)
         return result
 
-    def __manage_websocket_close(self, ws, close_status_code, close_msg): # pylint: disable=unused-argument
+    def __manage_websocket_close(self, ws, close_status_code, close_msg):
         """
         websocket.WebSocketApp on_close function.
         =========================================
@@ -533,10 +536,23 @@ class Ccxw():
                 :return None:
         """
 
+        def force_close():
+            try:
+                if ws.sock:  # Si el socket sigue abierto después del timeout
+                    ws.sock.close()
+                    print(f'Cerrando socket {self.__exchange}')
+            except Exception: # pylint: disable=broad-except
+                self.__auxiliary_class.reset_ws_temp_data()
+                print(f'ERROR: Cerrando socket {self.__exchange}')
+
         if close_status_code is None and close_msg is None:
             self.__ws_ended = True
         else:
             self.__auxiliary_class.reset_ws_temp_data()
+
+        timer = threading.Timer(40, force_close)
+        timer.start()
+        timer.join(45)
 
         time.sleep(5)
 
@@ -745,6 +761,117 @@ class Ccxw():
 
         return result
 
+    def is_connections_ok(self):
+        """
+        Ccxw is_connections_ok function.
+        ================================
+                :param self: Ccxw instance.
+
+                :return: bool.
+        """
+        result = False
+        __get_limit_times = 5
+        __time_interval = 60
+
+        try:
+            if self.__ws_streams is not None and isinstance(self.__ws_streams, list):
+                result = True
+                __current_time = time.time()
+
+                for __stream in self.__ws_streams:
+                    __last_get_time = 0
+                    __endpoint, __symbol, __interval = (
+                        __stream['endpoint'], __stream['symbol'], 'none'
+                    )
+                    if 'interval' in __stream:
+                        __interval = __stream['interval']
+
+                    __data = self.get_current_data(__endpoint, __symbol, __interval)
+                    __cmp = False
+
+                    if __endpoint == 'order_book':
+                        if __data is not None and isinstance(__data, dict):
+                            __last_get_time = float(__data['data']['timestamp'])
+                            __cmp = (__current_time - __last_get_time)\
+                                <= (__get_limit_times * __time_interval)
+                            result = __cmp and result
+                        else:
+                            __cmp = (__current_time - self.__start_time)\
+                                > (2 *__get_limit_times * __time_interval)
+                            if __cmp:
+                                result = False
+
+                    elif __endpoint == 'kline':
+                        __time_interval = Ccxw.get_delta_time_from_interval(__interval)
+                        if __data is not None and isinstance(__data, dict):
+                            if len(__data['data']) > 0:
+                                __last_get_time = float(__data['data'][-1]['close_time']) / 1000
+                            __cmp = (__current_time - __last_get_time)\
+                                <= (__get_limit_times * __time_interval)
+                            result = __cmp and result
+                        else:
+                            __cmp = (__current_time - self.__start_time)\
+                                > (2 *__get_limit_times * __time_interval)
+                            if __cmp:
+                                result = False
+                    elif __endpoint == 'trades':
+                        if __data is not None and isinstance(__data, dict):
+                            if len(__data['data']) > 0:
+                                __last_get_time = float(__data['data'][-1]['trade_time']) / 1000
+                            __cmp = (__current_time - __last_get_time)\
+                                <= (9 * __get_limit_times * __time_interval)
+                            result = __cmp and result
+                        else:
+                            __cmp = (__current_time - self.__start_time)\
+                                > (9 *__get_limit_times * __time_interval)
+                            if __cmp:
+                                result = False
+                    elif __endpoint == 'ticker':
+                        if __data is not None and isinstance(__data, dict):
+
+                            __last_get_time = float(__data['data']['event_time']) / 1000
+                            __cmp = (__current_time - __last_get_time)\
+                                <= (9 * __get_limit_times * __time_interval)
+                            result = __cmp and result
+                        else:
+                            __cmp = (__current_time - self.__start_time)\
+                                > (9 *__get_limit_times * __time_interval)
+                            if __cmp:
+                                result = False
+
+        except Exception: # pylint: disable=broad-except
+            result = False
+
+        return result
+
+    @classmethod
+    def get_delta_time_from_interval(cls, interval):
+        """
+        get_delta_time_from_interval
+        ============================
+        """
+        result = 60
+
+        __intervals_map = {
+            '1m': 60,
+            '3m': 180,
+            '5m': 300,
+            '15m': 900,
+            '30m': 1800,
+            '1h': 3600,
+            '2h': 7200,
+            '4h': 14400,
+            '6h': 21600,
+            '12h': 43200,
+            '1d': 86400,
+            '1w': 604800,
+            '1mo': 86400 * 30
+        }
+
+        if interval in __intervals_map:
+            result = __intervals_map[interval]
+
+        return result
 
     @classmethod
     def get_supported_exchanges(cls):

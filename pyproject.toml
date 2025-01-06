@@ -1,7 +1,7 @@
 [tool.poetry]
 
 name = "ccxw"
-version = "0.2.21"
+version = "0.2.23"
 description = "Ccxw - CryptoCurrency eXchange Websocket Library"
 authors = ["Ricardo Marcelo Alvarez <rmalvarezkai@gmail.com>"]
 readme = "README.md"
