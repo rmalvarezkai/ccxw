@@ -447,7 +447,8 @@ class BingxCcxwAuxClass():
         with self.__lock:
             self.__is_stopped = True
 
-        self.__ws_client.close()
+        if self.__ws_client is not None:
+            self.__ws_client.close()
 
         if self.__thread_websocket_client is not None\
             and threading.current_thread() is not self.__thread_websocket_client\

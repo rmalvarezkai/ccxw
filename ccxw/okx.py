@@ -368,8 +368,11 @@ class OkxCcxwAuxClass():
             except Exception: # pylint: disable=broad-except
                 pass
 
-        self.__ws_public.close()
-        self.__ws_bussiness.close()
+        if self.__ws_public is not None:
+            self.__ws_public.close()
+
+        if self.__ws_bussiness is not None:
+            self.__ws_bussiness.close()
 
         if self.__thread_public is not None\
             and threading.current_thread() is not self.__thread_public\

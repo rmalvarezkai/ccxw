@@ -264,6 +264,19 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
 
     proc_only_arguments = True
 
+    exchanges = Ccxw.get_supported_exchanges()
+    wsms_test = []
+
+    print('INI: Test __del__')
+    for exchange_test in exchanges:
+        wsm_test = Ccxw(exchange_test, streams, testmode=testmode,\
+                        result_max_len=result_max_len,\
+                        data_max_len=data_max_len, debug=debug)
+
+        wsms_test.append(wsm_test)
+
+    print('END: Test __del__')
+
     #############################
     # aux_class = BinanceCcxwAuxClass(streams, debug=True)
     # return result
