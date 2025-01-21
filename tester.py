@@ -1,5 +1,7 @@
 """
 Script to test websocket data
+To exec
+poetry run python -m unittest tests/test_ccxw.py
 """
 
 import sys
