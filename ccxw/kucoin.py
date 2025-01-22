@@ -388,7 +388,6 @@ class KucoinCcxwAuxClass():
                 result = result.replace('m', 'min')
             elif 'h' in result or 'H' in result:
                 result = result.lower().replace('h', 'hour')
-                result = 60 * int(result)
             elif 'd' in result or 'D' in result:
                 result = result.lower().replace('d', 'day')
             elif 'w' in result or 'W' in result:

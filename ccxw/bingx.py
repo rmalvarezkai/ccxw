@@ -602,7 +602,7 @@ class BingxCcxwAuxClass():
             if 'm' in result:
                 result = result.replace('m', 'min')
             elif result == '1h':
-                result = '60m'
+                result = '60min'
             elif 'h' in result:
                 result = result.replace('h', 'hour')
             elif 'd' in result:
@@ -629,7 +629,7 @@ class BingxCcxwAuxClass():
         result = interval
 
         if result is not None:
-            if result == '60m':
+            if result == '60min':
                 result = '1h'
             elif 'min' in result:
                 result = result.replace('min', 'm')

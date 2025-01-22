@@ -5,6 +5,7 @@ kline tests cases.
 
 Author: Ricardo Marcelo Alvarez
 Date: 2023-10-31
+poetry run python -m unittest tests/test_ccxw.py
 """
 import sys
 import unittest
@@ -28,9 +29,9 @@ class TestCcxw(unittest.TestCase):
 
         cls.__wsm = {}
 
-        __symbols = ['BTC/USDT', 'ETH/USDT']
+        __symbols = ['BTC/USDT']
         __testmode = False
-        __interval = '1m'
+        __intervals = ['1m', '1h', '1d']
         __result_max_len = 500
         __update_speed = '1000ms'
         __data_max_len = 500
@@ -43,20 +44,22 @@ class TestCcxw(unittest.TestCase):
 
         for symbol in __symbols:
             for endpoint in cls.__endpoints:
-                stream_add = None
                 if endpoint == 'kline':
-                    stream_add = {
-                            'endpoint': endpoint,
-                            'symbol': symbol,
-                            'interval': __interval
-                    }
+                    for __interval in __intervals:
+                        stream_add = None
+                        stream_add = {
+                                'endpoint': endpoint,
+                                'symbol': symbol,
+                                'interval': __interval
+                        }
+                        cls.__streams.append(stream_add)
                 else:
+                    stream_add = None
                     stream_add = {
                             'endpoint': endpoint,
                             'symbol': symbol
                     }
-
-                cls.__streams.append(stream_add)
+                    cls.__streams.append(stream_add)
 
         for exchange in cls.__exchanges:
 

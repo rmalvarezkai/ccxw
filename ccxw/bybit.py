@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Ccxw - CryptoCurrency eXchange Websocket Library
 ByBit auxiliary functions
@@ -377,7 +378,8 @@ class BybitCcxwAuxClass():
             result = result.replace('m', '')
         elif 'h' in result or 'H' in result:
             result = result.replace('h', '').replace('H','')
-            result = 60 * int(result)
+            result = str(60 * int(result))
+
         elif 'd' in result or 'D' in result:
             result = 'D'
         elif 'w' in result or 'W' in result:
@@ -405,12 +407,10 @@ class BybitCcxwAuxClass():
             if result.isnumeric():
                 result = int(result)
 
-                if result == 1:
-                    result = '1m'
-                elif result < 60:
+                if result < 60:
                     result = str(result) + 'm'
                 else:
-                    result = str(round(result/60)) + 'h'
+                    result = str(int(round(result/60))) + 'h'
 
             elif 'M' in result:
                 result = '1mo'
