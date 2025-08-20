@@ -1,7 +1,7 @@
 [tool.poetry]
 
 name = "ccxw"
-version = "0.2.28"
+version = "0.2.29"
 description = "Ccxw - CryptoCurrency eXchange Websocket Library"
 authors = ["Ricardo Marcelo Alvarez <rmalvarezkai@gmail.com>"]
 readme = "README.md"
@@ -26,4 +26,3 @@ pytest-xdist = "^3.6.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-

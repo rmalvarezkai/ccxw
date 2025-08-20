@@ -257,7 +257,10 @@ class Ccxw():
     def __del__(self):
 
         if not self.__stop_launcher:
-            self.stop()
+            try:
+                self.stop()
+            except Exception: # pylint: disable=broad-except
+                pass
 
         # if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
         #     self.__auxiliary_class.stop()
@@ -271,7 +274,10 @@ class Ccxw():
             if os.path.exists(self.__database_name):
                 os.remove(self.__database_name)
 
-        del self.__auxiliary_class
+        try:
+            del self.__auxiliary_class
+        except Exception: # pylint: disable=broad-except
+            pass
 
     def __init_key_selector(self):
         result = False
@@ -364,13 +370,16 @@ class Ccxw():
         __time_limit = 90
 
         if self.__ws and self.__ws_endpoint_on_close_vars is not None:
-            if isinstance(self.__ws_endpoint_on_close_vars, str)\
-                and len(self.__ws_endpoint_on_close_vars) > 0:
-                self.__ws.send(self.__ws_endpoint_on_close_vars)
-            if isinstance(self.__ws_endpoint_on_close_vars, list)\
-                and len(self.__ws_endpoint_on_close_vars) > 0:
-                for __close_vars in self.__ws_endpoint_on_close_vars:
-                    self.__ws.send(__close_vars)
+            try:
+                if isinstance(self.__ws_endpoint_on_close_vars, str)\
+                    and len(self.__ws_endpoint_on_close_vars) > 0:
+                    self.__ws.send(self.__ws_endpoint_on_close_vars)
+                if isinstance(self.__ws_endpoint_on_close_vars, list)\
+                    and len(self.__ws_endpoint_on_close_vars) > 0:
+                    for __close_vars in self.__ws_endpoint_on_close_vars:
+                        self.__ws.send(__close_vars)
+            except Exception: # pylint: disable=broad-except
+                pass
 
         time.sleep(2)
 
@@ -388,7 +397,10 @@ class Ccxw():
             time.sleep(1)
 
         if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
-            self.__auxiliary_class.stop()
+            try:
+                self.__auxiliary_class.stop()
+            except Exception: # pylint: disable=broad-except
+                pass
 
         if not self.__ws_ended:
             try:
