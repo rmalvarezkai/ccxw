@@ -177,6 +177,14 @@ class Ccxw():
         self.__result_max_len = result_max_len
         self.__ws_ended = True
 
+        self.__last_time_message_lock = threading.Lock()
+        self.__last_time_message = time.time()
+        self.__limit_time_message = 300
+
+        self.__last_ping_message_lock = threading.Lock()
+        self.__last_ping_message = time.time()
+        self.__limit_ping_message = 32
+
         self.__ws_streams = streams
 
         if exchange in self.get_supported_exchanges():
@@ -458,10 +466,12 @@ class Ccxw():
 
         try:
             self.__ws = (
-                websocket.WebSocketApp(socket, on_message=self.__manage_websocket_message,\
-                                       on_open=self.__manage_websocket_open,\
-                                       on_reconnect=self.__manage_websocket_reconnect,\
-                                       on_close=self.__manage_websocket_close)
+                websocket.WebSocketApp(socket,
+                                       on_message=self.__manage_websocket_message,
+                                       on_open=self.__manage_websocket_open,
+                                       on_reconnect=self.__manage_websocket_reconnect,
+                                       on_close=self.__manage_websocket_close,
+                                       on_ping=self.__on_ping)
             )
             result = True
 
@@ -470,14 +480,18 @@ class Ccxw():
             print('On create websocket exception: ' + str(exc))
         self.__ws_ended = False
         __ws_temp = (
-            self.__ws.run_forever(ping_interval=self.__ws_ping_interval,\
-                                  ping_timeout=self.__ws_ping_timeout,\
+            self.__ws.run_forever(ping_interval=self.__ws_ping_interval,
+                                  ping_timeout=self.__ws_ping_timeout,
                                   reconnect=140)
             )
 
         self.__ws_ended = True
 
         return result
+
+    def __on_ping(self, _, _message):
+        with self.__last_ping_message_lock:
+            self.__last_ping_message = time.time()
 
     def __manage_websocket_open(self, ws):
         """
@@ -596,8 +610,10 @@ class Ccxw():
                 :return None:
         """
 
-        __time_ini = time.time_ns()
+        with self.__last_time_message_lock:
+            self.__last_time_message = time.time()
 
+        __time_ini = time.time_ns()
         #print(str(message_in))
 
         try:
@@ -666,8 +682,8 @@ class Ccxw():
         if self.min_proc_time_ms is None or __time_diff < self.min_proc_time_ms:
             self.min_proc_time_ms = __time_diff
 
-        if self.__stop_launcher and not self.__ws_ended:
-            ws.close()
+        # if self.__stop_launcher and not self.__ws_ended:
+        #     ws.close()
 
     def get_current_data(self, endpoint, symbol, interval='none'):
         """
@@ -853,6 +869,20 @@ class Ccxw():
 
         except Exception: # pylint: disable=broad-except
             result = False
+
+        if result:
+            if self.__exchange == 'binance':
+                __last_ping = 0
+                with self.__last_ping_message_lock:
+                    __last_ping = self.__last_ping_message
+
+                result = (time.time() - __last_ping) <= self.__limit_ping_message
+
+            __last_time = 0
+            with self.__last_time_message_lock:
+                __last_time = self.__last_time_message
+
+            result = result and (time.time() - __last_time) <= self.__limit_time_message
 
         return result
 

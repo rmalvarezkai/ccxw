@@ -249,7 +249,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
 
     wsm0 = None
 
-    time_max = 50
+    time_max = 300
     time_sleep = 5
     testmode = False
     result_max_len = 4
@@ -265,6 +265,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     proc_only_arguments = True
 
     exchanges = Ccxw.get_supported_exchanges()
+    exchanges = [exchange]
     wsms_test = []
 
     print('INI: Test __del__')
