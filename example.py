@@ -191,6 +191,34 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                         'symbol': symbol_in
                     },
                     {
+                        'endpoint': 'order_book',
+                        'symbol': 'ETH/FDUSD'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'BNB/FDUSD'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'ETH/BTC'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'BTC/USDT'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'ETH/USDT'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'BNB/USDT'
+                    },
+                    {
+                        'endpoint': 'order_book',
+                        'symbol': 'FDUSD/USDT'
+                    },
+                    {
                         'endpoint': 'kline',
                         'symbol': symbol_in,
                         'interval': interval
@@ -204,6 +232,9 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                         'symbol': symbol_in
                     }
             ]
+
+    pprint.pprint(streams, sort_dicts=False)
+    print('=' * 140)
 
     # streams = None
     # if endpoint == 'kline':
@@ -249,7 +280,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
 
     wsm0 = None
 
-    time_max = 300
+    time_max = 1800
     time_sleep = 5
     testmode = False
     result_max_len = 4
@@ -287,9 +318,9 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     if proc_only_arguments: # pylint: disable=too-many-nested-blocks
         try:
             pprint.pprint(streams, sort_dicts=False)
-            wsm0 = Ccxw(exchange_out, streams, testmode=testmode,\
-                            result_max_len=result_max_len,\
-                            data_max_len=data_max_len, debug=debug)
+            wsm0 = Ccxw(exchange_out, streams, testmode=testmode,
+                        result_max_len=result_max_len,
+                        data_max_len=data_max_len, debug=debug)
 
         except Exception as exc: # pylint: disable=broad-except
             print('EXCEPTION: ' + str(exc))
@@ -324,10 +355,10 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     data0 = wsm0.get_current_data(stream['endpoint'], stream['symbol'], __interval)
                     # data0 = None
 
-                    if data0 is not None:
-                        pprint.pprint(data0, sort_dicts=False)
-                        print('')
-                        print(str(i) + '    ' + '=' * 80)
+                    # if data0 is not None:
+                    #     pprint.pprint(data0, sort_dicts=False)
+                    #     print('')
+                    #     print(str(i) + '    ' + '=' * 80)
                     # else:
                     #     print('NO DATA')
                     #     print(str(i) + '    ' + '=' * 80)
@@ -340,9 +371,23 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     # print(f'Sqlite database size: {__db_size}')
                     # print('++++++++++++++++++++++++++++++++++++++++++++++++++')
                 __ok_conn = wsm0.is_connections_ok()
-                print(f'ok_conn: {__ok_conn}')
+                print(f'ok_conn: {__ok_conn} -> {i}')
                 print('+' * 100)
+                print('')
 
+                if not __ok_conn:
+                    print('INI restarting Ccxw')
+                    __time_r_ini = int(round(time.time()))
+                    wsm0.stop()
+                    wsm0 = None
+                    wsm0 = Ccxw(exchange_out, streams, testmode=testmode,
+                                result_max_len=result_max_len,
+                                data_max_len=data_max_len, debug=debug)
+                    wsm0.start()
+                    __time_r_end = int(round(time.time()))
+                    __time_r_diff = __time_r_end - __time_r_ini
+                    print(f'END restarting Ccxw restarting time {__time_r_diff}')
+                    print('')
                 time.sleep(time_sleep)
 
             time.sleep(5)

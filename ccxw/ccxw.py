@@ -350,8 +350,8 @@ class Ccxw():
 
         try:
             self.__stop_launcher = False # Used in self.stop()
-            self.__thread = threading.Thread(target=self.__websocket_launcher,\
-                                             args=(self.__socket,),\
+            self.__thread = threading.Thread(target=self.__websocket_launcher,
+                                             args=(self.__socket,),
                                              name='ccxw_websocket_thread')
             self.__thread.start()
             result = True
@@ -362,7 +362,7 @@ class Ccxw():
 
         return result
 
-    def stop(self,time_to_wait=5):
+    def stop(self, time_to_wait=5):
         """
         Stopping getting data form exchange
         ===================================
@@ -427,6 +427,12 @@ class Ccxw():
         self.__start_time = 0
 
         return result
+
+    def is_running(self):
+        """
+        Check if starting.
+        """
+        return not self.__stop_launcher
 
     def __websocket_launcher(self, socket):
         """
