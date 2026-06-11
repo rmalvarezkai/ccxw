@@ -1,7 +1,7 @@
 [project]
 
 name = "ccxw"
-version = "0.2.35"
+version = "0.2.36"
 description = "Ccxw - CryptoCurrency eXchange Websocket Library"
 authors = [
     {name = "Ricardo Marcelo Alvarez",email = "rmalvarezkai@gmail.com"}

@@ -389,7 +389,9 @@ class BingxCcxwAuxClass():
         result = True
         with self.__lock:
             self.__is_stopped = False
-        self.__thread_api_client = threading.Thread(target=self.__start_ws)
+        self.__thread_api_client = threading.Thread(target=self.__start_ws,
+                                                    daemon=True,
+                                                    name='ccxw_bingx_ws_client_thread')
         self.__thread_api_client.start()
         return result
 
@@ -426,7 +428,9 @@ class BingxCcxwAuxClass():
         result = True
         with self.__lock:
             self.__is_stopped = False
-        self.__thread_api_client = threading.Thread(target=self.__get_data_from_api)
+        self.__thread_api_client = threading.Thread(target=self.__get_data_from_api,
+                                                    daemon=True,
+                                                    name='ccxw_bingx_api_client_thread')
         self.__thread_api_client.start()
         return result
 

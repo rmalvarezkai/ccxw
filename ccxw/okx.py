@@ -347,13 +347,19 @@ class OkxCcxwAuxClass():
         with self.__lock_stopped:
             self.__is_stopped = False
 
-        self.__thread_public = threading.Thread(target=self.__start_ws_client_public)
+        self.__thread_public = threading.Thread(target=self.__start_ws_client_public,
+                                                daemon=True,
+                                                name='ccxw_okx_ws_client_public_thread')
         self.__thread_public.start()
 
-        self.__thread_bussiness = threading.Thread(target=self.__start_ws_client_bussiness)
+        self.__thread_bussiness = threading.Thread(target=self.__start_ws_client_bussiness,
+                                                   daemon=True,
+                                                   name='ccxw_okx_ws_client_bussiness_thread')
         self.__thread_bussiness.start()
 
-        self.__thread_ping = threading.Thread(target=self.__start_ping_thread)
+        self.__thread_ping = threading.Thread(target=self.__start_ping_thread,
+                                              daemon=True,
+                                              name='ccxw_okx_ws_client_ping_thread')
         self.__thread_ping.start()
 
     def __stop_ws_clients(self):

@@ -131,7 +131,8 @@ class BybitCcxwAuxClass():
         with self.__stop_flag_lock:
             self.__stop_flag = False
 
-        self.__ping_thread = threading.Thread(target=self.__thread_ping,\
+        self.__ping_thread = threading.Thread(target=self.__thread_ping,
+                                              daemon=True,
                                               name='ccxw_bybit_ping_thread')
 
         self.__ping_thread.start()

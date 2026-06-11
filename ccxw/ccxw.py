@@ -351,6 +351,7 @@ class Ccxw():
         try:
             self.__stop_launcher = False # Used in self.stop()
             self.__thread = threading.Thread(target=self.__websocket_launcher,
+                                             daemon=True,
                                              args=(self.__socket,),
                                              name='ccxw_websocket_thread')
             self.__thread.start()
