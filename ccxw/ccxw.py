@@ -273,7 +273,7 @@ class Ccxw():
         # if self.__auxiliary_class is not None and hasattr(self.__auxiliary_class, 'stop'):
         #     self.__auxiliary_class.stop()
 
-        if hasattr(self,'__conn_db') and self.__conn_db is not None:
+        if self.__conn_db is not None:
             with self.__conn_db_lock:
                 self.__conn_db.commit()
                 self.__conn_db.close()
@@ -351,7 +351,7 @@ class Ccxw():
         try:
             self.__stop_launcher = False # Used in self.stop()
             self.__thread = threading.Thread(target=self.__websocket_launcher,
-                                             daemon=True,
+                                             daemon=False,
                                              args=(self.__socket,),
                                              name='ccxw_websocket_thread')
             self.__thread.start()
@@ -363,7 +363,7 @@ class Ccxw():
 
         return result
 
-    def stop(self, time_to_wait=5):
+    def stop(self, time_to_wait=32):
         """
         Stopping getting data form exchange
         ===================================
