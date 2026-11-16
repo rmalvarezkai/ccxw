@@ -150,8 +150,8 @@ class BinanceCcxwAuxClass():
                         and stream['interval'] is not None\
                         and isinstance(stream['interval'], str)\
                         and stream['interval'] in\
-                            ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h',\
-                             '6h', '8h', '12h', '1d', '3d', '1w', '1mo']
+                            ['1s', '1m', '3m', '5m', '15m', '30m', '1h', '2h',\
+                             '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1mo']
 
         return result
 
@@ -579,8 +579,9 @@ class BinanceCcxwAuxClass():
             __message_add['hight'] = __temp_data['k']['h']
             __message_add['low'] = __temp_data['k']['l']
             __message_add['volume'] = __temp_data['k']['v']
+            __message_add['taker_buy_base_asset_volume'] = __temp_data['k']['V']
+            __message_add['taker_buy_quote_asset_volume'] = __temp_data['k']['Q']
             __message_add['is_closed'] = __temp_data['k']['x']
-
 
             self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = __message_add
 

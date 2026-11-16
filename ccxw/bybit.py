@@ -162,7 +162,7 @@ class BybitCcxwAuxClass():
                                         'endpoint': str only allowed 'order_book' | 'kline' |\
                                             'trades' | 'ticker',
                                         'symbol': str unified symbol.,
-                                        'interval': str '1m' | '3m' | '5m' | '15m' | '30m' |\
+                                        'interval': str '1s' | '1m' | '3m' | '5m' | '15m' | '30m' |\
                                             '1h' | '2h' | '4h' | '6h' | '12h' | '1d' | '1w' | '1mo'\
                                             for 'kline' endpoint is mandatory.
                                     }
@@ -692,6 +692,8 @@ class BybitCcxwAuxClass():
                     __message_add['hight'] = __temp_data['data'][i]['high']
                     __message_add['low'] = __temp_data['data'][i]['low']
                     __message_add['volume'] = __temp_data['data'][i]['volume']
+                    __message_add['taker_buy_base_asset_volume'] = None
+                    __message_add['taker_buy_quote_asset_volume'] = None
                     __message_add['is_closed'] = __temp_data['data'][i]['confirm']
 
                     self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = (

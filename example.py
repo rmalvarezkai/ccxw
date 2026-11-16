@@ -278,6 +278,14 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
     #                 }
     #         ]
 
+    streams = [
+                    {
+                        'endpoint': 'kline',
+                        'symbol': symbol_in,
+                        'interval': interval
+                    }
+            ]
+
     wsm0 = None
 
     time_max = 1800
@@ -341,7 +349,7 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
             # time.sleep(2.5)
 
             wsm0.start()
-            time.sleep(50)
+            time.sleep(23)
 
             for i in range(0,int(round(time_max / time_sleep))):
                 for stream in streams:
@@ -355,13 +363,13 @@ def main(argv): # pylint: disable=too-many-locals, too-many-branches, too-many-s
                     data0 = wsm0.get_current_data(stream['endpoint'], stream['symbol'], __interval)
                     # data0 = None
 
-                    # if data0 is not None:
-                    #     pprint.pprint(data0, sort_dicts=False)
-                    #     print('')
-                    #     print(str(i) + '    ' + '=' * 80)
-                    # else:
-                    #     print('NO DATA')
-                    #     print(str(i) + '    ' + '=' * 80)
+                    if data0 is not None:
+                        pprint.pprint(data0, sort_dicts=False)
+                        print('')
+                        print(str(i) + '    ' + '=' * 80)
+                    else:
+                        print('NO DATA')
+                        print(str(i) + '    ' + '=' * 80)
 
                     time.sleep(1)
                     # __db_size = wsm0.get_sqlite_memory_used()

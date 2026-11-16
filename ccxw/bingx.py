@@ -953,6 +953,8 @@ class BingxCcxwAuxClass():
                 __message_add['hight'] = __temp_data['data']['K']['h']
                 __message_add['low'] = __temp_data['data']['K']['l']
                 __message_add['volume'] = __temp_data['data']['K']['v']
+                __message_add['taker_buy_base_asset_volume'] = None
+                __message_add['taker_buy_quote_asset_volume'] = None
                 __message_add['is_closed'] = None
 
                 self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] = __message_add

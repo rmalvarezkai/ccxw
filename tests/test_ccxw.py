@@ -165,6 +165,8 @@ class TestCcxw(unittest.TestCase):
                               'hight': Or(str,None),
                               'low': Or(str,None),
                               'volume': Or(str,None),
+                              'taker_buy_base_asset_volume': Or(str,None),
+                              'taker_buy_quote_asset_volume': Or(str,None),
                               'is_closed': Or(bool,None)
                             }
                         )

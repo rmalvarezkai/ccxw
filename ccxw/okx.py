@@ -1021,6 +1021,8 @@ class OkxCcxwAuxClass():
                     __message_add['hight'] = __temp_data['data'][i][2]
                     __message_add['low'] = __temp_data['data'][i][3]
                     __message_add['volume'] = __temp_data['data'][i][5]
+                    __message_add['taker_buy_base_asset_volume'] = None
+                    __message_add['taker_buy_quote_asset_volume'] = None
                     __message_add['is_closed'] = __is_confirmed
 
                     self.__ws_temp_data[__stream_index][int(__message_add['open_time'])] =(
